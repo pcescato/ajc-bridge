@@ -349,6 +349,298 @@ class Media_Processor {
 	}
 
 	/**
+	 * Process featured image and return file data
+	 *
+	 * Generates WebP and AVIF versions but returns data instead of uploading.
+	 * For use with atomic commits.
+	 *
+	 * @param int $post_id Post ID.
+	 *
+	 * @return array Associative array of paths => binary content, or empty if no featured image.
+	 */
+	public function get_featured_image_data( int $post_id ): array {
+		// Check if post has featured image
+		$thumbnail_id = get_post_thumbnail_id( $post_id );
+
+		if ( ! $thumbnail_id ) {
+			Logger::info(
+				'No featured image set for post',
+				array( 'post_id' => $post_id )
+			);
+			return array();
+		}
+
+		Logger::info(
+			'Processing featured image for atomic commit',
+			array(
+				'post_id'      => $post_id,
+				'thumbnail_id' => $thumbnail_id,
+			)
+		);
+
+		// Get full-size image URL
+		$image_data = wp_get_attachment_image_src( $thumbnail_id, 'full' );
+
+		if ( ! $image_data || ! isset( $image_data[0] ) ) {
+			Logger::error(
+				'Failed to get featured image URL',
+				array(
+					'post_id'      => $post_id,
+					'thumbnail_id' => $thumbnail_id,
+				)
+			);
+			return array();
+		}
+
+		$image_url = $image_data[0];
+
+		// Download image
+		$local_path = $this->download_image( $image_url, $post_id );
+
+		if ( is_wp_error( $local_path ) ) {
+			Logger::error(
+				'Failed to download featured image',
+				array(
+					'post_id' => $post_id,
+					'error'   => $local_path->get_error_message(),
+				)
+			);
+			return array();
+		}
+
+		// Generate WebP version
+		$webp_path = $this->generate_featured_webp( $local_path, $post_id );
+
+		if ( is_wp_error( $webp_path ) ) {
+			Logger::error(
+				'Failed to generate featured WebP',
+				array(
+					'post_id' => $post_id,
+					'error'   => $webp_path->get_error_message(),
+				)
+			);
+			return array();
+		}
+
+		// Generate AVIF version
+		$avif_path = $this->generate_featured_avif( $local_path, $post_id );
+
+		// Collect file data
+		$files = array();
+
+		// Read WebP content
+		$webp_content = file_get_contents( $webp_path );
+		if ( false !== $webp_content ) {
+			$github_path = sprintf( 'static/images/%d/featured.webp', $post_id );
+			$files[ $github_path ] = $webp_content;
+
+			Logger::info(
+				'Featured WebP data collected',
+				array(
+					'post_id' => $post_id,
+					'path'    => $github_path,
+					'size'    => strlen( $webp_content ),
+				)
+			);
+		}
+
+		// Read AVIF content if available
+		if ( ! is_wp_error( $avif_path ) ) {
+			$avif_content = file_get_contents( $avif_path );
+			if ( false !== $avif_content ) {
+				$github_path = sprintf( 'static/images/%d/featured.avif', $post_id );
+				$files[ $github_path ] = $avif_content;
+
+				Logger::info(
+					'Featured AVIF data collected',
+					array(
+						'post_id' => $post_id,
+						'path'    => $github_path,
+						'size'    => strlen( $avif_content ),
+					)
+				);
+			}
+		}
+
+		return $files;
+	}
+
+	/**
+	 * Process post images and return file data
+	 *
+	 * Extracts images, generates WebP/AVIF versions, and returns data for atomic commit.
+	 *
+	 * @param int    $post_id Post ID.
+	 * @param string $content Post content HTML.
+	 *
+	 * @return array Associative array with 'files' (path => content) and 'mappings' (original URL => relative path).
+	 */
+	public function get_post_images_data( int $post_id, string $content ): array {
+		Logger::info(
+			'Processing post images for atomic commit',
+			array( 'post_id' => $post_id )
+		);
+
+		// Extract image URLs from content
+		$image_urls = $this->extract_image_urls( $content );
+
+		if ( empty( $image_urls ) ) {
+			Logger::info(
+				'No images found in post content',
+				array( 'post_id' => $post_id )
+			);
+			return array(
+				'files'    => array(),
+				'mappings' => array(),
+			);
+		}
+
+		Logger::info(
+			'Found images to process for atomic commit',
+			array(
+				'post_id' => $post_id,
+				'count'   => count( $image_urls ),
+			)
+		);
+
+		$files = array();
+		$url_mappings = array();
+
+		foreach ( $image_urls as $original_url ) {
+			$result = $this->get_single_image_data( $post_id, $original_url );
+
+			if ( is_wp_error( $result ) ) {
+				Logger::error(
+					'Failed to process image for atomic commit',
+					array(
+						'post_id' => $post_id,
+						'url'     => $original_url,
+						'error'   => $result->get_error_message(),
+					)
+				);
+				continue;
+			}
+
+			// Merge file data
+			$files = array_merge( $files, $result['files'] );
+			$url_mappings[ $original_url ] = $result['relative_path'];
+		}
+
+		Logger::success(
+			'Post images data collected',
+			array(
+				'post_id'   => $post_id,
+				'processed' => count( $url_mappings ),
+				'total'     => count( $image_urls ),
+				'files'     => count( $files ),
+			)
+		);
+
+		return array(
+			'files'    => $files,
+			'mappings' => $url_mappings,
+		);
+	}
+
+	/**
+	 * Process single image and return file data
+	 *
+	 * Downloads, optimizes, and collects file data for atomic commit.
+	 *
+	 * @param int    $post_id      Post ID.
+	 * @param string $original_url Original image URL.
+	 *
+	 * @return array|\WP_Error Array with 'files' and 'relative_path', or WP_Error on failure.
+	 */
+	private function get_single_image_data( int $post_id, string $original_url ): array|\WP_Error {
+		// Download image to temp directory
+		$local_path = $this->download_image( $original_url, $post_id );
+
+		if ( is_wp_error( $local_path ) ) {
+			return $local_path;
+		}
+
+		// Get filename without extension
+		$filename = basename( $local_path );
+		$pathinfo = pathinfo( $filename );
+		$basename = $pathinfo['filename'];
+
+		$files = array();
+		$preferred_format = null;
+
+		// Generate WebP version
+		$webp_path = $this->generate_webp( $local_path, $post_id, $basename );
+		if ( ! is_wp_error( $webp_path ) ) {
+			$webp_content = file_get_contents( $webp_path );
+			if ( false !== $webp_content ) {
+				$github_path = sprintf( 'static/images/%d/%s.webp', $post_id, $basename );
+				$files[ $github_path ] = $webp_content;
+				$preferred_format = 'webp';
+
+				Logger::info(
+					'WebP data collected',
+					array(
+						'post_id' => $post_id,
+						'file'    => basename( $github_path ),
+						'size'    => strlen( $webp_content ),
+					)
+				);
+			}
+		}
+
+		// Generate AVIF version
+		$avif_path = $this->generate_avif( $local_path, $post_id, $basename );
+		if ( ! is_wp_error( $avif_path ) ) {
+			$avif_content = file_get_contents( $avif_path );
+			if ( false !== $avif_content ) {
+				$github_path = sprintf( 'static/images/%d/%s.avif', $post_id, $basename );
+				$files[ $github_path ] = $avif_content;
+
+				if ( null === $preferred_format ) {
+					$preferred_format = 'avif';
+				}
+
+				Logger::info(
+					'AVIF data collected',
+					array(
+						'post_id' => $post_id,
+						'file'    => basename( $github_path ),
+						'size'    => strlen( $avif_content ),
+					)
+				);
+			}
+		}
+
+		// Fallback to original if no optimized versions
+		if ( empty( $files ) ) {
+			$original_content = file_get_contents( $local_path );
+			if ( false !== $original_content ) {
+				$github_path = sprintf( 'static/images/%d/%s', $post_id, $filename );
+				$files[ $github_path ] = $original_content;
+				$preferred_format = pathinfo( $filename, PATHINFO_EXTENSION );
+			} else {
+				return new \WP_Error(
+					'read_failed',
+					'Failed to read image file'
+				);
+			}
+		}
+
+		// Determine relative path for content replacement
+		$relative_path = sprintf(
+			'/images/%d/%s.%s',
+			$post_id,
+			$basename,
+			$preferred_format
+		);
+
+		return array(
+			'files'         => $files,
+			'relative_path' => $relative_path,
+		);
+	}
+
+	/**
 	 * Extract image URLs from HTML content
 	 *
 	 * @param string $content HTML content.

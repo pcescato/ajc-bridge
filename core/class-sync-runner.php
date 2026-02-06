@@ -56,25 +56,18 @@ class Sync_Runner {
 			return new \WP_Error( 'post_not_published', __( 'Only published posts can be synced', 'wp-jamstack-sync' ) );
 		}
 
-		// Process featured image first
+		// Initialize media processor
 		require_once WPJAMSTACK_PATH . 'core/class-media-processor.php';
-		$media_processor      = new Media_Processor();
-		$featured_image_path  = $media_processor->process_featured_image( $post_id );
+		$media_processor = new Media_Processor();
 
-		// Process content images
-		$image_mapping = $media_processor->process_post_images( $post_id, $post->post_content );
+		// Collect featured image data
+		$featured_data = $media_processor->get_featured_image_data( $post_id );
+		$featured_image_path = ! empty( $featured_data ) ? sprintf( '/images/%d/featured.webp', $post_id ) : '';
 
-		if ( is_wp_error( $image_mapping ) ) {
-			Logger::error(
-				'Image processing failed',
-				array(
-					'post_id' => $post_id,
-					'error'   => $image_mapping->get_error_message(),
-				)
-			);
-			// Continue with sync even if images fail - non-blocking
-			$image_mapping = array();
-		}
+		// Collect content images data
+		$images_result = $media_processor->get_post_images_data( $post_id, $post->post_content );
+		$image_files = $images_result['files'] ?? array();
+		$image_mapping = $images_result['mappings'] ?? array();
 
 		// Load adapter
 		require_once WPJAMSTACK_PATH . 'adapters/interface-adapter.php';
@@ -84,7 +77,7 @@ class Sync_Runner {
 
 		// Convert to Markdown with image path replacements and featured image
 		try {
-			$content   = $adapter->convert( $post, $image_mapping, $featured_image_path ?? '' );
+			$markdown_content = $adapter->convert( $post, $image_mapping, $featured_image_path );
 			$file_path = $adapter->get_file_path( $post );
 		} catch ( \Exception $e ) {
 			Logger::error(
@@ -95,14 +88,72 @@ class Sync_Runner {
 				)
 			);
 			self::update_sync_meta( $post_id, 'error' );
+
+			// Cleanup temp files
+			$media_processor->cleanup_temp_files( $post_id );
+
 			return new \WP_Error( 'conversion_failed', $e->getMessage() );
 		}
 
-		// Upload to GitHub
-		$result = self::upload_to_github( $post, $content, $file_path );
+		// Build payload for atomic commit
+		$payload = array();
+
+		// Add Markdown file
+		$payload[ $file_path ] = $markdown_content;
+
+		// Add featured images
+		$payload = array_merge( $payload, $featured_data );
+
+		// Add content images
+		$payload = array_merge( $payload, $image_files );
+
+		// Check payload size (10MB limit per ADR-04)
+		$total_size = 0;
+		foreach ( $payload as $content ) {
+			$total_size += strlen( $content );
+		}
+
+		if ( $total_size > 10485760 ) { // 10MB in bytes
+			Logger::warning(
+				'Payload exceeds 10MB limit',
+				array(
+					'post_id' => $post_id,
+					'size_mb' => round( $total_size / 1048576, 2 ),
+					'files'   => count( $payload ),
+				)
+			);
+		}
+
+		Logger::info(
+			'Atomic commit payload prepared',
+			array(
+				'post_id' => $post_id,
+				'files'   => count( $payload ),
+				'size_kb' => round( $total_size / 1024, 2 ),
+			)
+		);
+
+		// Create atomic commit
+		$git_api = new Git_API();
+		$commit_message = sprintf(
+			'%s: %s',
+			'Update', // We don't know if create or update in atomic mode
+			$post->post_title
+		);
+
+		$result = $git_api->create_atomic_commit( $payload, $commit_message );
+
+		// Cleanup temp files regardless of result
+		$media_processor->cleanup_temp_files( $post_id );
 
 		if ( is_wp_error( $result ) ) {
-			Logger::error( 'Sync failed', array( 'post_id' => $post_id, 'error' => $result->get_error_message() ) );
+			Logger::error(
+				'Sync aborted: Atomic failure',
+				array(
+					'post_id' => $post_id,
+					'error'   => $result->get_error_message(),
+				)
+			);
 			self::update_sync_meta( $post_id, 'error' );
 			return $result;
 		}
@@ -113,7 +164,7 @@ class Sync_Runner {
 		// Cache file path for future deletions
 		update_post_meta( $post_id, '_jamstack_file_path', $file_path );
 
-		Logger::success( 'Sync completed', array( 'post_id' => $post_id ) );
+		Logger::success( 'Sync completed', array( 'post_id' => $post_id, 'result' => $result ) );
 
 		return array(
 			'post_id'   => $post_id,

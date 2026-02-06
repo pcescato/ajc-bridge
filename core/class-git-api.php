@@ -783,4 +783,394 @@ class Git_API {
 
 		return $data;
 	}
+
+	/**
+	 * Create atomic commit with multiple files
+	 *
+	 * Uses GitHub Git Data API to create a single commit with multiple files.
+	 * Flow: Get Branch Ref -> Get Base Tree -> Create Blobs -> Create Tree -> Create Commit -> Update Ref.
+	 *
+	 * @param array  $files   Associative array of file paths => file contents (binary or text).
+	 * @param string $message Commit message.
+	 *
+	 * @return array|\WP_Error Commit data on success, WP_Error on failure.
+	 */
+	public function create_atomic_commit( array $files, string $message ): array|\WP_Error {
+		if ( empty( $files ) ) {
+			return new \WP_Error(
+				'empty_payload',
+				__( 'No files provided for atomic commit', 'wp-jamstack-sync' )
+			);
+		}
+
+		// Step 1: Get current branch reference
+		$ref_data = $this->get_branch_ref();
+		if ( is_wp_error( $ref_data ) ) {
+			Logger::error( 'Failed to get branch reference', array(
+				'branch' => $this->branch,
+				'error' => $ref_data->get_error_message(),
+			) );
+			return $ref_data;
+		}
+
+		$base_sha = $ref_data['object']['sha'];
+		Logger::info( 'Retrieved branch reference', array(
+			'branch' => $this->branch,
+			'sha' => substr( $base_sha, 0, 7 ),
+		) );
+
+		// Step 2: Get base tree SHA
+		$base_tree_sha = $ref_data['object']['sha']; // This is the commit SHA, we need tree SHA from commit
+		$commit_data = $this->get_commit_data( $base_sha );
+		if ( is_wp_error( $commit_data ) ) {
+			Logger::error( 'Failed to get commit data', array( 'error' => $commit_data->get_error_message() ) );
+			return $commit_data;
+		}
+
+		$base_tree_sha = $commit_data['tree']['sha'];
+		Logger::info( 'Retrieved base tree', array( 'sha' => substr( $base_tree_sha, 0, 7 ) ) );
+
+		// Step 3: Create blobs for all files
+		$tree_items = array();
+		foreach ( $files as $path => $content ) {
+			$blob_sha = $this->create_blob( $content );
+			if ( is_wp_error( $blob_sha ) ) {
+				Logger::error( 'Failed to create blob', array(
+					'path' => $path,
+					'error' => $blob_sha->get_error_message(),
+				) );
+				return $blob_sha;
+			}
+
+			$tree_items[] = array(
+				'path' => $path,
+				'mode' => '100644', // Regular file
+				'type' => 'blob',
+				'sha'  => $blob_sha,
+			);
+
+			Logger::info( 'Blob created', array(
+				'path' => $path,
+				'sha' => substr( $blob_sha, 0, 7 ),
+				'size' => strlen( $content ),
+			) );
+		}
+
+		// Step 4: Create new tree
+		$tree_sha = $this->create_tree( $tree_items, $base_tree_sha );
+		if ( is_wp_error( $tree_sha ) ) {
+			Logger::error( 'Failed to create tree', array( 'error' => $tree_sha->get_error_message() ) );
+			return $tree_sha;
+		}
+
+		Logger::info( 'Tree created', array(
+			'sha' => substr( $tree_sha, 0, 7 ),
+			'files' => count( $tree_items ),
+		) );
+
+		// Step 5: Create commit
+		$commit_sha = $this->create_commit( $message, $tree_sha, $base_sha );
+		if ( is_wp_error( $commit_sha ) ) {
+			Logger::error( 'Failed to create commit', array( 'error' => $commit_sha->get_error_message() ) );
+			return $commit_sha;
+		}
+
+		Logger::info( 'Commit created', array(
+			'sha' => substr( $commit_sha, 0, 7 ),
+			'message' => $message,
+		) );
+
+		// Step 6: Update branch reference
+		$update_result = $this->update_ref( $commit_sha );
+		if ( is_wp_error( $update_result ) ) {
+			Logger::error( 'Failed to update branch reference', array( 'error' => $update_result->get_error_message() ) );
+			return $update_result;
+		}
+
+		Logger::success( 'Atomic commit completed', array(
+			'sha' => substr( $commit_sha, 0, 7 ),
+			'branch' => $this->branch,
+			'files' => count( $files ),
+		) );
+
+		return array(
+			'commit_sha' => $commit_sha,
+			'tree_sha'   => $tree_sha,
+			'files'      => array_keys( $files ),
+			'message'    => $message,
+		);
+	}
+
+	/**
+	 * Get branch reference
+	 *
+	 * @return array|\WP_Error Reference data or error.
+	 */
+	private function get_branch_ref(): array|\WP_Error {
+		list( $owner, $repo ) = explode( '/', $this->repo );
+		$url = sprintf(
+			'https://api.github.com/repos/%s/%s/git/refs/heads/%s',
+			$owner,
+			$repo,
+			$this->branch
+		);
+
+		$response = wp_remote_get(
+			$url,
+			array(
+				'headers' => $this->get_headers(),
+				'timeout' => 30,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$status = wp_remote_retrieve_response_code( $response );
+		if ( 200 !== $status ) {
+			$body = json_decode( wp_remote_retrieve_body( $response ), true );
+			return new \WP_Error(
+				'api_error',
+				$body['message'] ?? 'Failed to get branch reference',
+				array( 'status' => $status )
+			);
+		}
+
+		return json_decode( wp_remote_retrieve_body( $response ), true );
+	}
+
+	/**
+	 * Get commit data
+	 *
+	 * @param string $commit_sha Commit SHA.
+	 *
+	 * @return array|\WP_Error Commit data or error.
+	 */
+	private function get_commit_data( string $commit_sha ): array|\WP_Error {
+		list( $owner, $repo ) = explode( '/', $this->repo );
+		$url = sprintf(
+			'https://api.github.com/repos/%s/%s/git/commits/%s',
+			$owner,
+			$repo,
+			$commit_sha
+		);
+
+		$response = wp_remote_get(
+			$url,
+			array(
+				'headers' => $this->get_headers(),
+				'timeout' => 30,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$status = wp_remote_retrieve_response_code( $response );
+		if ( 200 !== $status ) {
+			$body = json_decode( wp_remote_retrieve_body( $response ), true );
+			return new \WP_Error(
+				'api_error',
+				$body['message'] ?? 'Failed to get commit data',
+				array( 'status' => $status )
+			);
+		}
+
+		return json_decode( wp_remote_retrieve_body( $response ), true );
+	}
+
+	/**
+	 * Create blob from content
+	 *
+	 * @param string $content File content (will be base64 encoded).
+	 *
+	 * @return string|\WP_Error Blob SHA or error.
+	 */
+	private function create_blob( string $content ): string|\WP_Error {
+		list( $owner, $repo ) = explode( '/', $this->repo );
+		$url = sprintf(
+			'https://api.github.com/repos/%s/%s/git/blobs',
+			$owner,
+			$repo
+		);
+
+		$payload = wp_json_encode( array(
+			'content'  => base64_encode( $content ),
+			'encoding' => 'base64',
+		) );
+
+		$response = wp_remote_post(
+			$url,
+			array(
+				'headers' => $this->get_headers(),
+				'body'    => $payload,
+				'timeout' => 60, // Longer timeout for large files
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$status = wp_remote_retrieve_response_code( $response );
+		if ( 201 !== $status ) {
+			$body = json_decode( wp_remote_retrieve_body( $response ), true );
+			return new \WP_Error(
+				'api_error',
+				$body['message'] ?? 'Failed to create blob',
+				array( 'status' => $status )
+			);
+		}
+
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		return $data['sha'];
+	}
+
+	/**
+	 * Create tree from items
+	 *
+	 * @param array  $tree_items Array of tree item objects.
+	 * @param string $base_tree  Base tree SHA to build upon.
+	 *
+	 * @return string|\WP_Error Tree SHA or error.
+	 */
+	private function create_tree( array $tree_items, string $base_tree ): string|\WP_Error {
+		list( $owner, $repo ) = explode( '/', $this->repo );
+		$url = sprintf(
+			'https://api.github.com/repos/%s/%s/git/trees',
+			$owner,
+			$repo
+		);
+
+		$payload = wp_json_encode( array(
+			'base_tree' => $base_tree,
+			'tree'      => $tree_items,
+		) );
+
+		$response = wp_remote_post(
+			$url,
+			array(
+				'headers' => $this->get_headers(),
+				'body'    => $payload,
+				'timeout' => 45,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$status = wp_remote_retrieve_response_code( $response );
+		if ( 201 !== $status ) {
+			$body = json_decode( wp_remote_retrieve_body( $response ), true );
+			return new \WP_Error(
+				'api_error',
+				$body['message'] ?? 'Failed to create tree',
+				array( 'status' => $status )
+			);
+		}
+
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		return $data['sha'];
+	}
+
+	/**
+	 * Create commit
+	 *
+	 * @param string $message   Commit message.
+	 * @param string $tree_sha  Tree SHA.
+	 * @param string $parent_sha Parent commit SHA.
+	 *
+	 * @return string|\WP_Error Commit SHA or error.
+	 */
+	private function create_commit( string $message, string $tree_sha, string $parent_sha ): string|\WP_Error {
+		list( $owner, $repo ) = explode( '/', $this->repo );
+		$url = sprintf(
+			'https://api.github.com/repos/%s/%s/git/commits',
+			$owner,
+			$repo
+		);
+
+		$payload = wp_json_encode( array(
+			'message' => $message,
+			'tree'    => $tree_sha,
+			'parents' => array( $parent_sha ),
+		) );
+
+		$response = wp_remote_post(
+			$url,
+			array(
+				'headers' => $this->get_headers(),
+				'body'    => $payload,
+				'timeout' => 30,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$status = wp_remote_retrieve_response_code( $response );
+		if ( 201 !== $status ) {
+			$body = json_decode( wp_remote_retrieve_body( $response ), true );
+			return new \WP_Error(
+				'api_error',
+				$body['message'] ?? 'Failed to create commit',
+				array( 'status' => $status )
+			);
+		}
+
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		return $data['sha'];
+	}
+
+	/**
+	 * Update branch reference to new commit
+	 *
+	 * @param string $commit_sha New commit SHA.
+	 *
+	 * @return array|\WP_Error Updated reference data or error.
+	 */
+	private function update_ref( string $commit_sha ): array|\WP_Error {
+		list( $owner, $repo ) = explode( '/', $this->repo );
+		$url = sprintf(
+			'https://api.github.com/repos/%s/%s/git/refs/heads/%s',
+			$owner,
+			$repo,
+			$this->branch
+		);
+
+		$payload = wp_json_encode( array(
+			'sha'   => $commit_sha,
+			'force' => false, // Don't allow force push
+		) );
+
+		$response = wp_remote_request(
+			$url,
+			array(
+				'method'  => 'PATCH',
+				'headers' => $this->get_headers(),
+				'body'    => $payload,
+				'timeout' => 30,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$status = wp_remote_retrieve_response_code( $response );
+		if ( 200 !== $status ) {
+			$body = json_decode( wp_remote_retrieve_body( $response ), true );
+			return new \WP_Error(
+				'api_error',
+				$body['message'] ?? 'Failed to update reference',
+				array( 'status' => $status )
+			);
+		}
+
+		return json_decode( wp_remote_retrieve_body( $response ), true );
+	}
 }
