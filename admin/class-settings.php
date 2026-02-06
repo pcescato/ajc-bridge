@@ -107,6 +107,22 @@ class Settings {
 			self::PAGE_SLUG,
 			'wpjamstack_debug_section'
 		);
+
+		// Post Types Section
+		add_settings_section(
+			'wpjamstack_posttypes_section',
+			__( 'Content Types', 'wp-jamstack-sync' ),
+			array( __CLASS__, 'render_posttypes_section' ),
+			self::PAGE_SLUG
+		);
+
+		add_settings_field(
+			'enabled_post_types',
+			__( 'Synchronize', 'wp-jamstack-sync' ),
+			array( __CLASS__, 'render_posttypes_field' ),
+			self::PAGE_SLUG,
+			'wpjamstack_posttypes_section'
+		);
 	}
 
 	/**
@@ -149,6 +165,18 @@ class Settings {
 
 		// Sanitize debug mode checkbox
 		$sanitized['debug_mode'] = ! empty( $input['debug_mode'] );
+
+		// Sanitize enabled post types
+		if ( ! empty( $input['enabled_post_types'] ) && is_array( $input['enabled_post_types'] ) ) {
+			// Only allow 'post' and 'page'
+			$sanitized['enabled_post_types'] = array_intersect(
+				$input['enabled_post_types'],
+				array( 'post', 'page' )
+			);
+		} else {
+			// Default to posts only
+			$sanitized['enabled_post_types'] = array( 'post' );
+		}
 
 		return $sanitized;
 	}
@@ -314,6 +342,56 @@ class Settings {
 			<?php esc_html_e( 'Logs will be written to wp-content/uploads/wpjamstack-logs/', 'wp-jamstack-sync' ); ?>
 		</p>
 		<?php
+	}
+
+	/**
+	 * Render post types section description
+	 *
+	 * @return void
+	 */
+	public static function render_posttypes_section(): void {
+		echo '<p>';
+		esc_html_e( 'Choose which content types should be synchronized to your Hugo site.', 'wp-jamstack-sync' );
+		echo '</p>';
+	}
+
+	/**
+	 * Render post types checkboxes
+	 *
+	 * @return void
+	 */
+	public static function render_posttypes_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$enabled = $settings['enabled_post_types'] ?? array( 'post' );
+
+		$post_types = array(
+			'post' => array(
+				'label' => __( 'Posts', 'wp-jamstack-sync' ),
+				'description' => __( 'Standard blog posts (synced to content/posts/)', 'wp-jamstack-sync' ),
+			),
+			'page' => array(
+				'label' => __( 'Pages', 'wp-jamstack-sync' ),
+				'description' => __( 'Static pages (synced to content/)', 'wp-jamstack-sync' ),
+			),
+		);
+
+		foreach ( $post_types as $type => $info ) :
+			?>
+			<label style="display: block; margin-bottom: 10px;">
+				<input
+					type="checkbox"
+					name="<?php echo esc_attr( self::OPTION_NAME ); ?>[enabled_post_types][]"
+					value="<?php echo esc_attr( $type ); ?>"
+					<?php checked( in_array( $type, $enabled, true ) ); ?>
+				/>
+				<strong><?php echo esc_html( $info['label'] ); ?></strong>
+				<br />
+				<span class="description" style="margin-left: 20px;">
+					<?php echo esc_html( $info['description'] ); ?>
+				</span>
+			</label>
+			<?php
+		endforeach;
 	}
 
 	/**

@@ -28,8 +28,15 @@ class Columns {
 	 * @return void
 	 */
 	public static function init(): void {
+		// Add column for posts
 		add_filter( 'manage_posts_columns', array( __CLASS__, 'add_column' ) );
 		add_action( 'manage_posts_custom_column', array( __CLASS__, 'render_column' ), 10, 2 );
+
+		// Add column for pages
+		add_filter( 'manage_pages_columns', array( __CLASS__, 'add_column' ) );
+		add_action( 'manage_pages_custom_column', array( __CLASS__, 'render_column' ), 10, 2 );
+
+		// Add styles and actions
 		add_action( 'admin_head', array( __CLASS__, 'add_column_styles' ) );
 		add_filter( 'post_row_actions', array( __CLASS__, 'add_row_actions' ), 10, 2 );
 		add_action( 'wp_ajax_jamstack_sync_now', array( __CLASS__, 'ajax_sync_now' ) );

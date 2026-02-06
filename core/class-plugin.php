@@ -192,9 +192,15 @@ class Plugin {
 			return;
 		}
 
-		// Only sync 'post' post type by default
-		// TODO: Make this configurable in settings
-		if ( 'post' !== $post->post_type ) {
+		// Check if this post type should be synced
+		if ( ! self::should_sync_post_type( $post->post_type ) ) {
+			Logger::info(
+				'Skipping sync for disabled post type',
+				array(
+					'post_id'   => $post_id,
+					'post_type' => $post->post_type,
+				)
+			);
 			return;
 		}
 
@@ -224,8 +230,8 @@ class Plugin {
 	public function handle_post_trash( int $post_id ): void {
 		$post = get_post( $post_id );
 
-		// Only process posts (not pages, attachments, etc.)
-		if ( ! $post || 'post' !== $post->post_type ) {
+		// Check if this post type should be synced
+		if ( ! $post || ! self::should_sync_post_type( $post->post_type ) ) {
 			return;
 		}
 
@@ -264,8 +270,8 @@ class Plugin {
 	 * @return void
 	 */
 	public function handle_post_delete( int $post_id, \WP_Post $post ): void {
-		// Only process posts (not pages, attachments, etc.)
-		if ( 'post' !== $post->post_type ) {
+		// Check if this post type should be synced
+		if ( ! self::should_sync_post_type( $post->post_type ) ) {
 			return;
 		}
 
@@ -290,6 +296,27 @@ class Plugin {
 
 		// Enqueue for deletion
 		Queue_Manager::enqueue_deletion( $post_id );
+	}
+
+	/**
+	 * Check if a post type should be synced
+	 *
+	 * Checks plugin settings to determine if the given post type is enabled.
+	 *
+	 * @param string $post_type Post type to check.
+	 *
+	 * @return bool True if should sync, false otherwise.
+	 */
+	private static function should_sync_post_type( string $post_type ): bool {
+		$settings = get_option( 'wpjamstack_settings', array() );
+		$enabled_types = $settings['enabled_post_types'] ?? array( 'post' );
+
+		// Ensure it's an array
+		if ( ! is_array( $enabled_types ) ) {
+			$enabled_types = array( 'post' );
+		}
+
+		return in_array( $post_type, $enabled_types, true );
 	}
 
 	/**

@@ -45,18 +45,28 @@ class Hugo_Adapter implements Adapter_Interface {
 	}
 
 	/**
-	 * Get repository file path for Hugo post
+	 * Get repository file path for Hugo post/page
 	 *
-	 * Hugo convention: content/posts/YYYY-MM-DD-slug.md
+	 * Generates Hugo-compatible file paths:
+	 * - Posts: content/posts/{YYYY-MM-DD}-{slug}.md
+	 * - Pages: content/{slug}.md
 	 *
 	 * @param \WP_Post $post WordPress post object.
 	 *
 	 * @return string Relative file path in repository.
 	 */
 	public function get_file_path( \WP_Post $post ): string {
-		$date = get_the_date( 'Y-m-d', $post );
 		$slug = $post->post_name;
 
+		// Different paths for different post types
+		if ( 'page' === $post->post_type ) {
+			// Pages go directly in content/ directory
+			// Hugo convention: content/about.md, content/contact.md, etc.
+			return sprintf( 'content/%s.md', $slug );
+		}
+
+		// Posts use date-prefixed format in posts/ subdirectory
+		$date = get_the_date( 'Y-m-d', $post );
 		return sprintf( 'content/posts/%s-%s.md', $date, $slug );
 	}
 

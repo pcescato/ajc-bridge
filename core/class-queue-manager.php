@@ -309,9 +309,18 @@ class Queue_Manager {
 	public static function bulk_enqueue( array $args = array() ): array {
 		Logger::info( 'Bulk sync initiated' );
 
+		// Get enabled post types from settings
+		$settings = get_option( 'wpjamstack_settings', array() );
+		$post_types = $settings['enabled_post_types'] ?? array( 'post' );
+
+		// Ensure it's an array
+		if ( ! is_array( $post_types ) ) {
+			$post_types = array( 'post' );
+		}
+
 		// Default arguments
 		$defaults = array(
-			'post_type'      => 'post',
+			'post_type'      => $post_types,
 			'post_status'    => 'publish',
 			'posts_per_page' => -1, // Get all posts
 			'orderby'        => 'date',
