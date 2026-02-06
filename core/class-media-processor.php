@@ -270,56 +270,81 @@ class Media_Processor {
 			return null;
 		}
 
-		// Upload to GitHub
-		$github_path = sprintf( 'static/images/%d/featured.webp', $post_id );
-
-		// Check if file already exists
-		$existing_file = $this->git_api->get_file( $github_path );
-		$sha           = null;
-
-		if ( ! is_wp_error( $existing_file ) && isset( $existing_file['sha'] ) ) {
-			$sha = $existing_file['sha'];
+		// Generate AVIF version (if supported)
+		$avif_path = $this->generate_featured_avif( $local_path, $post_id );
+		
+		// Prepare files for upload
+		$files_to_upload = array(
+			'webp' => $webp_path,
+		);
+		
+		if ( ! is_wp_error( $avif_path ) ) {
+			$files_to_upload['avif'] = $avif_path;
 		}
 
-		// Read file content
-		$content = file_get_contents( $webp_path );
-		if ( false === $content ) {
-			Logger::error(
-				'Failed to read featured image file',
-				array( 'post_id' => $post_id )
+		// Upload all versions to GitHub
+		$upload_success = true;
+		foreach ( $files_to_upload as $format => $file_path ) {
+			$extension   = $format;
+			$github_path = sprintf( 'static/images/%d/featured.%s', $post_id, $extension );
+
+			// Check if file already exists
+			$existing_file = $this->git_api->get_file( $github_path );
+			$sha           = null;
+
+			if ( ! is_wp_error( $existing_file ) && isset( $existing_file['sha'] ) ) {
+				$sha = $existing_file['sha'];
+			}
+
+			// Read file content
+			$content = file_get_contents( $file_path );
+			if ( false === $content ) {
+				Logger::error(
+					'Failed to read featured image file',
+					array(
+						'post_id' => $post_id,
+						'format'  => $format,
+					)
+				);
+				continue;
+			}
+
+			// Upload to GitHub
+			$commit_message = sprintf( 'Upload featured %s image for post #%d', strtoupper( $format ), $post_id );
+			$result         = $this->git_api->create_or_update_file(
+				$github_path,
+				$content,
+				$commit_message,
+				$sha
 			);
+
+			if ( is_wp_error( $result ) ) {
+				Logger::error(
+					'Failed to upload featured image to GitHub',
+					array(
+						'post_id' => $post_id,
+						'format'  => $format,
+						'error'   => $result->get_error_message(),
+					)
+				);
+				$upload_success = false;
+			} else {
+				Logger::success(
+					'Featured image uploaded to GitHub',
+					array(
+						'post_id' => $post_id,
+						'format'  => $format,
+						'path'    => $github_path,
+					)
+				);
+			}
+		}
+
+		if ( ! $upload_success ) {
 			return null;
 		}
 
-		// Upload to GitHub
-		$commit_message = sprintf( 'Upload featured image for post #%d', $post_id );
-		$result         = $this->git_api->create_or_update_file(
-			$github_path,
-			$content,
-			$commit_message,
-			$sha
-		);
-
-		if ( is_wp_error( $result ) ) {
-			Logger::error(
-				'Failed to upload featured image to GitHub',
-				array(
-					'post_id' => $post_id,
-					'error'   => $result->get_error_message(),
-				)
-			);
-			return null;
-		}
-
-		Logger::success(
-			'Featured image uploaded to GitHub',
-			array(
-				'post_id' => $post_id,
-				'path'    => $github_path,
-			)
-		);
-
-		// Return relative path for Hugo
+		// Return relative path for Hugo (WebP as primary)
 		return sprintf( '/images/%d/featured.webp', $post_id );
 	}
 
@@ -553,7 +578,74 @@ class Media_Processor {
 	}
 
 	/**
+	 * Generate AVIF version of featured image
+	 *
+	 * Similar to generate_avif but uses fixed filename "featured.avif"
+	 *
+	 * @param string $source_path Source image path.
+	 * @param int    $post_id     Post ID.
+	 *
+	 * @return string|\WP_Error AVIF file path or WP_Error on failure.
+	 */
+	private function generate_featured_avif( string $source_path, int $post_id ): string|\WP_Error {
+		if ( null === $this->image_manager ) {
+			return new \WP_Error( 'intervention_unavailable', 'Intervention Image not available' );
+		}
+
+		// Check if Imagick driver supports AVIF
+		if ( ! $this->supports_avif() ) {
+			Logger::info(
+				'AVIF format not supported for featured image',
+				array( 'post_id' => $post_id )
+			);
+			return new \WP_Error( 'avif_not_supported', 'AVIF format not supported' );
+		}
+
+		try {
+			$output_path = $this->temp_dir . '/' . $post_id . '/featured.avif';
+
+			$image   = $this->image_manager->make( $source_path );
+			$imagick = $image->getCore();
+
+			if ( $imagick instanceof \Imagick ) {
+				$imagick->setImageFormat( 'avif' );
+				$imagick->setImageCompressionQuality( 85 );
+				$imagick->writeImage( $output_path );
+
+				Logger::info(
+					'Generated featured AVIF image',
+					array(
+						'post_id' => $post_id,
+						'file'    => 'featured.avif',
+						'size'    => filesize( $output_path ),
+					)
+				);
+
+				return $output_path;
+			} else {
+				return new \WP_Error( 'not_imagick_driver', 'AVIF generation requires Imagick driver' );
+			}
+
+		} catch ( \Exception $e ) {
+			Logger::warning(
+				'Featured AVIF generation failed',
+				array(
+					'post_id' => $post_id,
+					'error'   => $e->getMessage(),
+				)
+			);
+			return new \WP_Error(
+				'avif_generation_failed',
+				sprintf( 'Featured AVIF generation failed: %s', $e->getMessage() )
+			);
+		}
+	}
+
+	/**
 	 * Generate AVIF version of image
+	 *
+	 * AVIF provides better compression than WebP with same quality.
+	 * Requires Imagick with AVIF support (ImageMagick 7.0.8+ recommended).
 	 *
 	 * @param string $source_path Source image path.
 	 * @param int    $post_id     Post ID.
@@ -562,14 +654,103 @@ class Media_Processor {
 	 * @return string|\WP_Error AVIF file path or WP_Error on failure.
 	 */
 	private function generate_avif( string $source_path, int $post_id, string $basename ): string|\WP_Error {
-		// AVIF support depends on GD/Imagick version
-		// For now, log that it's not implemented
-		Logger::info(
-			'AVIF generation not yet implemented',
-			array( 'post_id' => $post_id )
-		);
+		if ( null === $this->image_manager ) {
+			return new \WP_Error( 'intervention_unavailable', 'Intervention Image not available' );
+		}
 
-		return new \WP_Error( 'avif_not_supported', 'AVIF generation not yet implemented' );
+		// Check if Imagick driver supports AVIF
+		if ( ! $this->supports_avif() ) {
+			Logger::info(
+				'AVIF format not supported by current driver',
+				array(
+					'post_id' => $post_id,
+					'reason'  => 'ImageMagick version does not support AVIF',
+				)
+			);
+			return new \WP_Error( 'avif_not_supported', 'AVIF format not supported by ImageMagick version' );
+		}
+
+		try {
+			$output_path = $this->temp_dir . '/' . $post_id . '/' . $basename . '.avif';
+
+			$image = $this->image_manager->make( $source_path );
+			
+			// AVIF encoding with quality 85
+			// Note: Intervention/Image may not support AVIF directly, so we use Imagick directly
+			$imagick = $image->getCore();
+			
+			if ( $imagick instanceof \Imagick ) {
+				$imagick->setImageFormat( 'avif' );
+				$imagick->setImageCompressionQuality( 85 );
+				$imagick->writeImage( $output_path );
+				
+				Logger::info(
+					'Generated AVIF image',
+					array(
+						'post_id' => $post_id,
+						'file'    => basename( $output_path ),
+						'size'    => filesize( $output_path ),
+					)
+				);
+				
+				return $output_path;
+			} else {
+				return new \WP_Error( 'not_imagick_driver', 'AVIF generation requires Imagick driver' );
+			}
+
+		} catch ( \Exception $e ) {
+			Logger::warning(
+				'AVIF generation failed',
+				array(
+					'post_id' => $post_id,
+					'error'   => $e->getMessage(),
+				)
+			);
+			return new \WP_Error(
+				'avif_generation_failed',
+				sprintf( 'AVIF generation failed: %s', $e->getMessage() )
+			);
+		}
+	}
+
+	/**
+	 * Check if current driver supports AVIF format
+	 *
+	 * AVIF support requires:
+	 * - Imagick driver (not GD)
+	 * - ImageMagick 7.0.8+ with AVIF delegate
+	 *
+	 * @return bool True if AVIF is supported.
+	 */
+	private function supports_avif(): bool {
+		// AVIF only works with Imagick driver
+		if ( ! extension_loaded( 'imagick' ) ) {
+			return false;
+		}
+
+		try {
+			$imagick = new \Imagick();
+			$formats = $imagick->queryFormats( 'AVIF' );
+			
+			$supported = ! empty( $formats );
+			
+			Logger::info(
+				'AVIF support check',
+				array(
+					'supported' => $supported,
+					'formats'   => $formats,
+				)
+			);
+			
+			return $supported;
+			
+		} catch ( \Exception $e ) {
+			Logger::warning(
+				'AVIF support check failed',
+				array( 'error' => $e->getMessage() )
+			);
+			return false;
+		}
 	}
 
 	/**

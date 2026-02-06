@@ -98,6 +98,14 @@ class Hugo_Adapter implements Adapter_Interface {
 		// Add featured image (use processed path if provided, otherwise get original)
 		if ( ! empty( $featured_image_path ) ) {
 			$front_matter['image'] = $featured_image_path;
+			
+			// Add image formats array for Hugo themes that support <picture> tags
+			// Both WebP and AVIF versions are uploaded to GitHub
+			$post_id = $post->ID;
+			$front_matter['image_formats'] = array(
+				'webp' => sprintf( '/images/%d/featured.webp', $post_id ),
+				'avif' => sprintf( '/images/%d/featured.avif', $post_id ),
+			);
 		} else {
 			$featured_image = $this->get_featured_image( $post->ID );
 			if ( $featured_image ) {
