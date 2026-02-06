@@ -297,6 +297,86 @@ class Queue_Manager {
 	}
 
 	/**
+	 * Enqueue all published posts for synchronization
+	 *
+	 * Bulk sync operation that schedules all published posts.
+	 * Uses staggered priorities to avoid overload.
+	 *
+	 * @param array $args Optional arguments for filtering posts.
+	 *
+	 * @return array Summary of enqueued posts.
+	 */
+	public static function bulk_enqueue( array $args = array() ): array {
+		Logger::info( 'Bulk sync initiated' );
+
+		// Default arguments
+		$defaults = array(
+			'post_type'      => 'post',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1, // Get all posts
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'fields'         => 'ids', // Only get IDs for performance
+		);
+
+		$query_args = wp_parse_args( $args, $defaults );
+
+		// Get all published posts
+		$query = new \WP_Query( $query_args );
+		$post_ids = $query->posts;
+
+		if ( empty( $post_ids ) ) {
+			Logger::warning( 'No posts found for bulk sync' );
+			return array(
+				'total'    => 0,
+				'enqueued' => 0,
+				'skipped'  => 0,
+			);
+		}
+
+		$enqueued = 0;
+		$skipped  = 0;
+
+		// Enqueue each post with staggered priority
+		foreach ( $post_ids as $index => $post_id ) {
+			// Check if already queued or processing
+			$current_status = get_post_meta( $post_id, self::META_STATUS, true );
+
+			if ( in_array( $current_status, array( self::STATUS_PENDING, self::STATUS_PROCESSING ), true ) ) {
+				Logger::info(
+					'Skipping post already in queue',
+					array( 'post_id' => $post_id )
+				);
+				$skipped++;
+				continue;
+			}
+
+			// Stagger priorities to spread load (priority 10-50)
+			// Earlier posts get higher priority (lower number)
+			$priority = 10 + ( $index % 40 );
+
+			// Enqueue the post
+			self::enqueue( $post_id, $priority );
+			$enqueued++;
+		}
+
+		Logger::success(
+			'Bulk sync completed',
+			array(
+				'total'    => count( $post_ids ),
+				'enqueued' => $enqueued,
+				'skipped'  => $skipped,
+			)
+		);
+
+		return array(
+			'total'    => count( $post_ids ),
+			'enqueued' => $enqueued,
+			'skipped'  => $skipped,
+		);
+	}
+
+	/**
 	 * Get sync status for post(s)
 	 *
 	 * Returns current sync status from post meta.
@@ -622,6 +702,58 @@ class Queue_Manager {
 		return function_exists( 'as_enqueue_async_action' )
 			&& function_exists( 'as_unschedule_all_actions' )
 			&& function_exists( 'as_has_scheduled_action' );
+	}
+
+	/**
+	 * Get queue statistics
+	 *
+	 * Returns counts of posts by sync status.
+	 * Useful for bulk sync progress tracking.
+	 *
+	 * @return array Statistics array with counts.
+	 */
+	public static function get_queue_stats(): array {
+		global $wpdb;
+
+		// Count posts by status
+		$stats = array(
+			'pending'    => 0,
+			'processing' => 0,
+			'success'    => 0,
+			'error'      => 0,
+			'total'      => 0,
+		);
+
+		// Get all published posts count
+		$total = wp_count_posts( 'post' );
+		$stats['total'] = $total->publish ?? 0;
+
+		// Count by sync status
+		$status_counts = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT meta_value as status, COUNT(*) as count 
+				FROM {$wpdb->postmeta} 
+				WHERE meta_key = %s 
+				GROUP BY meta_value",
+				self::META_STATUS
+			),
+			ARRAY_A
+		);
+
+		foreach ( $status_counts as $row ) {
+			$status = $row['status'];
+			$count  = (int) $row['count'];
+
+			if ( isset( $stats[ $status ] ) ) {
+				$stats[ $status ] = $count;
+			}
+		}
+
+		// Calculate not synced (published posts without status)
+		$synced_total        = array_sum( array_intersect_key( $stats, array_flip( array( 'pending', 'processing', 'success', 'error' ) ) ) );
+		$stats['not_synced'] = max( 0, $stats['total'] - $synced_total );
+
+		return $stats;
 	}
 }
 
