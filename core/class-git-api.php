@@ -64,7 +64,18 @@ class Git_API {
 
 		// Decrypt token if present
 		if ( ! empty( $settings['github_token'] ) ) {
-			$this->token = $this->decrypt_token( $settings['github_token'] );
+			$decrypted = $this->decrypt_token( $settings['github_token'] );
+			
+			// If decryption fails, fall back to plain text and log warning
+			if ( false === $decrypted || empty( $decrypted ) ) {
+				Logger::warning(
+					'Token decryption failed, falling back to plain text',
+					array( 'token_length' => strlen( $settings['github_token'] ) )
+				);
+				$this->token = $settings['github_token'];
+			} else {
+				$this->token = $decrypted;
+			}
 		}
 
 		$this->repo   = $settings['github_repo'] ?? null;
@@ -81,17 +92,23 @@ class Git_API {
 	 *
 	 * @param string $encrypted_token Encrypted token.
 	 *
-	 * @return string Decrypted token.
+	 * @return string|false Decrypted token or false on failure.
 	 */
-	private function decrypt_token( string $encrypted_token ): string {
+	private function decrypt_token( string $encrypted_token ): string|false {
 		$method = 'AES-256-CBC';
 		$key    = hash( 'sha256', wp_salt( 'auth' ), true );
 		$iv     = substr( hash( 'sha256', wp_salt( 'nonce' ), true ), 0, 16 );
 
-		$decoded   = base64_decode( $encrypted_token );
+		$decoded   = base64_decode( $encrypted_token, true );
+		
+		// If base64 decode fails, token is likely plain text
+		if ( false === $decoded ) {
+			return false;
+		}
+		
 		$decrypted = openssl_decrypt( $decoded, $method, $key, 0, $iv );
 
-		return $decrypted ? $decrypted : '';
+		return $decrypted !== false ? $decrypted : false;
 	}
 
 	/**
@@ -182,6 +199,16 @@ class Git_API {
 		$body        = wp_remote_retrieve_body( $response );
 		$data        = json_decode( $body, true );
 
+		// Log the full response for debugging (excluding sensitive token)
+		Logger::info(
+			'GitHub API response received',
+			array(
+				'status_code' => $status_code,
+				'body'        => $body,
+				'headers'     => wp_remote_retrieve_headers( $response )->getAll(),
+			)
+		);
+
 		// Handle HTTP errors
 		switch ( $status_code ) {
 			case 200:
@@ -213,10 +240,12 @@ class Git_API {
 			case 401:
 				// Unauthorized - invalid token
 				Logger::error(
-					'GitHub authentication failed',
+					'GitHub authentication failed - 401 Bad credentials',
 					array(
-						'status' => $status_code,
-						'error'  => $data['message'] ?? 'Unauthorized',
+						'status'       => $status_code,
+						'error'        => $data['message'] ?? 'Unauthorized',
+						'full_body'    => $body,
+						'token_length' => strlen( $this->token ?? '' ),
 					)
 				);
 				return new \WP_Error(
