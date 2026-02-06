@@ -146,6 +146,9 @@ class Hugo_Adapter implements Adapter_Interface {
 			$content = $this->replace_image_urls( $content, $image_mapping );
 		}
 
+		// Clean WordPress-specific HTML before conversion
+		$content = $this->clean_wordpress_html( $content );
+
 		// Convert WordPress shortcodes to readable text
 		$content = strip_shortcodes( $content );
 
@@ -175,9 +178,79 @@ class Hugo_Adapter implements Adapter_Interface {
 			$markdown = $this->basic_html_to_markdown( $content );
 		}
 
+		// Post-process to clean up WordPress artifacts
+		$markdown = $this->clean_markdown_output( $markdown );
+
 		// Clean up extra whitespace
 		$markdown = preg_replace( '/\n{3,}/', "\n\n", $markdown );
 		$markdown = trim( $markdown );
+
+		return $markdown;
+	}
+
+	/**
+	 * Clean WordPress-specific HTML before Markdown conversion
+	 *
+	 * Removes WordPress block wrappers, figure tags, and classes.
+	 *
+	 * @param string $content HTML content.
+	 *
+	 * @return string Cleaned HTML.
+	 */
+	private function clean_wordpress_html( string $content ): string {
+		// Remove figure and figcaption tags but keep inner content
+		$content = preg_replace( '/<figure[^>]*>/', '', $content );
+		$content = preg_replace( '/<\/figure>/', '', $content );
+		$content = preg_replace( '/<figcaption[^>]*>.*?<\/figcaption>/s', '', $content );
+
+		// Remove WordPress block wrapper divs (wp-block-*)
+		$content = preg_replace( '/<div[^>]*class="[^"]*wp-block-[^"]*"[^>]*>/', '', $content );
+
+		// Remove alignment wrapper divs
+		$content = preg_replace( '/<div[^>]*class="[^"]*(?:alignleft|alignright|aligncenter|alignnone)[^"]*"[^>]*>/', '', $content );
+
+		// Remove closing divs (after removing opening tags)
+		$content = preg_replace( '/<\/div>\s*/', '', $content );
+
+		// Remove WordPress alignment classes from images
+		$content = preg_replace( '/class="[^"]*(?:alignleft|alignright|aligncenter|alignnone|wp-image-\d+)[^"]*"/', '', $content );
+
+		// Remove WordPress size classes
+		$content = preg_replace( '/class="[^"]*(?:size-thumbnail|size-medium|size-large|size-full)[^"]*"/', '', $content );
+
+		// Remove empty class attributes
+		$content = preg_replace( '/\s+class=""/', '', $content );
+
+		// Clean up WordPress srcset and sizes attributes (we're using processed images)
+		$content = preg_replace( '/\s+srcset="[^"]*"/', '', $content );
+		$content = preg_replace( '/\s+sizes="[^"]*"/', '', $content );
+
+		// Remove width and height attributes from images
+		$content = preg_replace( '/\s+(?:width|height)="\d+"/', '', $content );
+
+		return $content;
+	}
+
+	/**
+	 * Clean Markdown output to remove WordPress artifacts
+	 *
+	 * Post-processes Markdown to ensure clean output.
+	 *
+	 * @param string $markdown Markdown content.
+	 *
+	 * @return string Cleaned Markdown.
+	 */
+	private function clean_markdown_output( string $markdown ): string {
+		// Remove any remaining HTML comments
+		$markdown = preg_replace( '/<!--.*?-->/s', '', $markdown );
+
+		// Clean up image syntax - ensure images are on their own line
+		$markdown = preg_replace( '/([^\n])(\!\[.*?\]\(.*?\))/', "$1\n\n$2", $markdown );
+		$markdown = preg_replace( '/(\!\[.*?\]\(.*?\))([^\n])/', "$1\n\n$2", $markdown );
+
+		// Remove WordPress-specific text artifacts
+		$markdown = str_replace( '[&hellip;]', '[...]', $markdown );
+		$markdown = str_replace( '&nbsp;', ' ', $markdown );
 
 		return $markdown;
 	}
