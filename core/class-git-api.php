@@ -533,13 +533,6 @@ class Git_API {
 		return $data;
 	}
 
-		if ( ! empty( $data['content'] ) ) {
-			$data['content'] = base64_decode( $data['content'] );
-		}
-
-		return $data;
-	}
-
 	/**
 	 * Delete a file from repository
 	 *
