@@ -484,17 +484,58 @@ class Git_API {
 	/**
 	 * Delete a file from repository
 	 *
+	 * Fetches the file's current SHA first, then deletes it.
+	 * Handles 404 errors gracefully (file already deleted or never existed).
+	 *
 	 * @param string $path    File path in repository.
 	 * @param string $message Commit message.
-	 * @param string $sha     Current file SHA.
 	 *
 	 * @return bool|\WP_Error True on success, WP_Error on failure.
 	 */
-	public function delete_file( string $path, string $message, string $sha ): bool|\WP_Error {
+	public function delete_file( string $path, string $message ): bool|\WP_Error {
 		if ( empty( $this->token ) || empty( $this->repo ) ) {
 			return new \WP_Error( 'missing_config', __( 'GitHub configuration missing', 'wp-jamstack-sync' ) );
 		}
 
+		Logger::info(
+			'Attempting to delete file',
+			array(
+				'path' => $path,
+				'repo' => $this->repo,
+			)
+		);
+
+		// First, fetch the file to get its SHA
+		$file_data = $this->get_file( $path );
+
+		// Handle 404: file doesn't exist (already deleted or never synced)
+		if ( null === $file_data ) {
+			Logger::info(
+				'File not found on GitHub (already deleted or never synced)',
+				array( 'path' => $path )
+			);
+			return true; // Not an error - file is gone, which is what we want
+		}
+
+		// Extract SHA from file data
+		if ( empty( $file_data['sha'] ) ) {
+			return new \WP_Error(
+				'missing_sha',
+				__( 'Unable to retrieve file SHA for deletion', 'wp-jamstack-sync' )
+			);
+		}
+
+		$sha = $file_data['sha'];
+
+		Logger::info(
+			'File SHA retrieved, proceeding with deletion',
+			array(
+				'path' => $path,
+				'sha'  => substr( $sha, 0, 7 ),
+			)
+		);
+
+		// Execute deletion
 		$url = sprintf( '%s/repos/%s/contents/%s', $this->api_base, $this->repo, ltrim( $path, '/' ) );
 
 		$body = array(
@@ -507,28 +548,68 @@ class Git_API {
 			$url,
 			array(
 				'method'  => 'DELETE',
-				'headers' => array(
-					'Authorization' => 'Bearer ' . $this->token,
-					'Accept'        => 'application/vnd.github+json',
-					'Content-Type'  => 'application/json',
-					'User-Agent'    => 'WP-Jamstack-Sync/' . WPJAMSTACK_VERSION,
-				),
+				'headers' => $this->get_headers(),
 				'body'    => wp_json_encode( $body ),
 				'timeout' => 15,
 			)
 		);
 
 		if ( is_wp_error( $response ) ) {
+			Logger::error(
+				'Network error during file deletion',
+				array(
+					'path'  => $path,
+					'error' => $response->get_error_message(),
+				)
+			);
 			return $response;
 		}
 
 		$status_code = wp_remote_retrieve_response_code( $response );
-		if ( 200 !== $status_code && 204 !== $status_code ) {
-			$body_data = json_decode( wp_remote_retrieve_body( $response ), true );
-			return new \WP_Error( 'api_error', $body_data['message'] ?? 'Failed to delete file' );
+
+		// Success: 200 or 204
+		if ( 200 === $status_code || 204 === $status_code ) {
+			Logger::success(
+				'File deleted successfully',
+				array(
+					'path'   => $path,
+					'status' => $status_code,
+				)
+			);
+			return true;
 		}
 
-		return true;
+		// Handle 404 during deletion (rare but possible if deleted between get_file and delete)
+		if ( 404 === $status_code ) {
+			Logger::info(
+				'File was already deleted (404 during deletion)',
+				array( 'path' => $path )
+			);
+			return true;
+		}
+
+		// Other errors
+		$body_data = json_decode( wp_remote_retrieve_body( $response ), true );
+		$error_message = $body_data['message'] ?? 'Failed to delete file';
+
+		Logger::error(
+			'GitHub API error during deletion',
+			array(
+				'path'    => $path,
+				'status'  => $status_code,
+				'message' => $error_message,
+			)
+		);
+
+		return new \WP_Error(
+			'api_error',
+			sprintf(
+				/* translators: 1: HTTP status code, 2: Error message */
+				__( 'GitHub API error (HTTP %1$d): %2$s', 'wp-jamstack-sync' ),
+				$status_code,
+				$error_message
+			)
+		);
 	}
 
 	/**
@@ -566,5 +647,70 @@ class Git_API {
 
 		$body = wp_remote_retrieve_body( $response );
 		return json_decode( $body, true ) ?? array();
+	}
+
+	/**
+	 * List files in a directory
+	 *
+	 * Retrieves the contents of a directory from GitHub.
+	 * Used primarily for finding image files to delete.
+	 *
+	 * @param string $path Directory path in repository.
+	 *
+	 * @return array|\WP_Error Array of file objects or WP_Error on failure.
+	 */
+	public function list_directory( string $path ): array|\WP_Error {
+		if ( empty( $this->token ) || empty( $this->repo ) ) {
+			return new \WP_Error( 'missing_config', __( 'GitHub configuration missing', 'wp-jamstack-sync' ) );
+		}
+
+		$url = sprintf(
+			'%s/repos/%s/contents/%s?ref=%s',
+			$this->api_base,
+			$this->repo,
+			ltrim( $path, '/' ),
+			$this->branch
+		);
+
+		$response = wp_remote_get(
+			$url,
+			array(
+				'headers' => $this->get_headers(),
+				'timeout' => 15,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$status_code = wp_remote_retrieve_response_code( $response );
+
+		// Directory doesn't exist
+		if ( 404 === $status_code ) {
+			return array(); // Empty array, not an error
+		}
+
+		// Other errors
+		if ( 200 !== $status_code ) {
+			$body = json_decode( wp_remote_retrieve_body( $response ), true );
+			return new \WP_Error(
+				'api_error',
+				$body['message'] ?? 'Failed to list directory'
+			);
+		}
+
+		$body = wp_remote_retrieve_body( $response );
+		$data = json_decode( $body, true );
+
+		// Ensure we got an array (directory listing)
+		if ( ! is_array( $data ) ) {
+			return new \WP_Error(
+				'invalid_response',
+				__( 'Expected directory listing, got single file', 'wp-jamstack-sync' )
+			);
+		}
+
+		return $data;
 	}
 }

@@ -33,6 +33,11 @@ class Queue_Manager {
 	public const SYNC_HOOK = 'wpjamstack_sync_post';
 
 	/**
+	 * Action hook for processing deletion tasks
+	 */
+	public const DELETE_HOOK = 'wpjamstack_delete_post';
+
+	/**
 	 * Post meta key for sync status
 	 */
 	public const META_STATUS = '_jamstack_sync_status';
@@ -79,6 +84,9 @@ class Queue_Manager {
 	public static function init(): void {
 		// Register sync processing hook
 		add_action( self::SYNC_HOOK, array( __CLASS__, 'process_sync' ), 10, 1 );
+
+		// Register deletion processing hook
+		add_action( self::DELETE_HOOK, array( __CLASS__, 'process_deletion' ), 10, 1 );
 	}
 
 	/**
@@ -243,6 +251,49 @@ class Queue_Manager {
 		delete_post_meta( $post_id, self::META_RETRY_COUNT );
 
 		Logger::info( 'Sync cancelled', array( 'post_id' => $post_id ) );
+	}
+
+	/**
+	 * Enqueue a post for deletion on GitHub
+	 *
+	 * Schedules background deletion task to remove Markdown file and images
+	 * from GitHub repository. Handles both Action Scheduler and WP Cron.
+	 *
+	 * @param int $post_id Post ID to enqueue for deletion.
+	 *
+	 * @return void
+	 */
+	public static function enqueue_deletion( int $post_id ): void {
+		Logger::info( 'Deletion enqueued', array( 'post_id' => $post_id ) );
+
+		// Cancel any pending sync tasks first
+		self::cancel( $post_id );
+
+		// Update status to pending deletion
+		update_post_meta( $post_id, self::META_STATUS, 'deleting' );
+		update_post_meta( $post_id, self::META_TIMESTAMP, time() );
+
+		// Schedule deletion task
+		if ( self::has_action_scheduler() ) {
+			as_enqueue_async_action(
+				self::DELETE_HOOK,
+				array( 'post_id' => $post_id ),
+				'',
+				false,
+				5 // High priority for deletions
+			);
+
+			Logger::info( 'Deletion task scheduled via Action Scheduler', array( 'post_id' => $post_id ) );
+		} else {
+			// Fallback to WordPress cron
+			wp_schedule_single_event(
+				time(),
+				self::DELETE_HOOK,
+				array( 'post_id' => $post_id )
+			);
+
+			Logger::info( 'Deletion task scheduled via WP Cron', array( 'post_id' => $post_id ) );
+		}
 	}
 
 	/**
@@ -441,6 +492,67 @@ class Queue_Manager {
 
 		// Always release lock
 		self::release_lock( $post_id );
+
+		Logger::info( 'Sync processing completed', array( 'post_id' => $post_id ) );
+	}
+
+	/**
+	 * Process deletion task for a post
+	 *
+	 * Background handler that executes the deletion workflow:
+	 * 1. Acquire processing lock
+	 * 2. Call Sync_Runner::delete()
+	 * 3. Handle success/failure
+	 * 4. Update status meta
+	 * 5. Release lock
+	 *
+	 * @param int $post_id Post ID to delete from GitHub.
+	 *
+	 * @return void
+	 */
+	public static function process_deletion( int $post_id ): void {
+		Logger::info( 'Processing deletion task', array( 'post_id' => $post_id ) );
+
+		// Acquire lock (prevent parallel execution)
+		if ( ! self::acquire_lock( $post_id ) ) {
+			Logger::warning(
+				'Deletion already in progress',
+				array( 'post_id' => $post_id )
+			);
+			return;
+		}
+
+		// Execute deletion via Sync_Runner
+		$result = Sync_Runner::delete( $post_id );
+
+		if ( is_wp_error( $result ) ) {
+			Logger::error(
+				'Deletion failed',
+				array(
+					'post_id' => $post_id,
+					'error'   => $result->get_error_message(),
+				)
+			);
+
+			update_post_meta( $post_id, self::META_STATUS, 'delete_error' );
+			update_post_meta( $post_id, self::META_TIMESTAMP, time() );
+		} else {
+			Logger::success(
+				'Deletion completed successfully',
+				array(
+					'post_id' => $post_id,
+					'deleted' => $result['deleted'] ?? array(),
+				)
+			);
+
+			update_post_meta( $post_id, self::META_STATUS, 'deleted' );
+			update_post_meta( $post_id, self::META_TIMESTAMP, time() );
+		}
+
+		// Release lock
+		self::release_lock( $post_id );
+
+		Logger::info( 'Deletion processing completed', array( 'post_id' => $post_id ) );
 	}
 
 	/**

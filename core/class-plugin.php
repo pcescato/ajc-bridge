@@ -145,6 +145,10 @@ class Plugin {
 		// Use wp_after_insert_post (WP 5.6+) for reliable post save detection
 		// This fires after post and meta are fully saved
 		add_action( 'wp_after_insert_post', array( $this, 'handle_post_save' ), 10, 4 );
+
+		// Register deletion hooks
+		add_action( 'wp_trash_post', array( $this, 'handle_post_trash' ), 10, 1 );
+		add_action( 'before_delete_post', array( $this, 'handle_post_delete' ), 10, 2 );
 	}
 
 	/**
@@ -205,6 +209,87 @@ class Plugin {
 
 		// Enqueue for async processing
 		Queue_Manager::enqueue( $post_id );
+	}
+
+	/**
+	 * Handle post trash events
+	 *
+	 * Triggered when a post is moved to trash.
+	 * Enqueues post for deletion from GitHub.
+	 *
+	 * @param int $post_id Post ID being trashed.
+	 *
+	 * @return void
+	 */
+	public function handle_post_trash( int $post_id ): void {
+		$post = get_post( $post_id );
+
+		// Only process posts (not pages, attachments, etc.)
+		if ( ! $post || 'post' !== $post->post_type ) {
+			return;
+		}
+
+		// Check if post was ever synced
+		$sync_status = get_post_meta( $post_id, '_jamstack_sync_status', true );
+
+		if ( empty( $sync_status ) || 'success' !== $sync_status ) {
+			Logger::info(
+				'Post trashed but was never synced, skipping deletion',
+				array( 'post_id' => $post_id )
+			);
+			return;
+		}
+
+		Logger::info(
+			'Post trashed, enqueuing for deletion',
+			array(
+				'post_id' => $post_id,
+				'title'   => $post->post_title,
+			)
+		);
+
+		// Enqueue for deletion
+		Queue_Manager::enqueue_deletion( $post_id );
+	}
+
+	/**
+	 * Handle permanent post deletion
+	 *
+	 * Triggered when a post is permanently deleted (bypassing trash).
+	 * Enqueues post for deletion from GitHub.
+	 *
+	 * @param int      $post_id Post ID being deleted.
+	 * @param \WP_Post $post    Post object.
+	 *
+	 * @return void
+	 */
+	public function handle_post_delete( int $post_id, \WP_Post $post ): void {
+		// Only process posts (not pages, attachments, etc.)
+		if ( 'post' !== $post->post_type ) {
+			return;
+		}
+
+		// Check if post was ever synced
+		$sync_status = get_post_meta( $post_id, '_jamstack_sync_status', true );
+
+		if ( empty( $sync_status ) || 'success' !== $sync_status ) {
+			Logger::info(
+				'Post deleted but was never synced, skipping deletion',
+				array( 'post_id' => $post_id )
+			);
+			return;
+		}
+
+		Logger::info(
+			'Post permanently deleted, enqueuing for deletion',
+			array(
+				'post_id' => $post_id,
+				'title'   => $post->post_title,
+			)
+		);
+
+		// Enqueue for deletion
+		Queue_Manager::enqueue_deletion( $post_id );
 	}
 
 	/**

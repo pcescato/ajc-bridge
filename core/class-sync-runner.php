@@ -163,4 +163,154 @@ class Sync_Runner {
 		update_post_meta( $post_id, '_jamstack_sync_status', $status );
 		update_post_meta( $post_id, '_jamstack_sync_last', current_time( 'mysql' ) );
 	}
+
+	/**
+	 * Delete post from GitHub
+	 *
+	 * Removes the Markdown file and associated images from the repository.
+	 * Handles cases where files don't exist gracefully.
+	 *
+	 * Pipeline:
+	 * 1. Determine GitHub file path for Markdown
+	 * 2. Delete Markdown file
+	 * 3. List images in post directory
+	 * 4. Delete each image file
+	 * 5. Return summary of deleted files
+	 *
+	 * @param int $post_id Post ID to delete from GitHub.
+	 *
+	 * @return array|\WP_Error Success array with deleted files or WP_Error on failure.
+	 */
+	public static function delete( int $post_id ): array|\WP_Error {
+		Logger::info( 'Deletion runner started', array( 'post_id' => $post_id ) );
+
+		// Get post data (may be trashed or already deleted)
+		$post = get_post( $post_id );
+
+		// If post doesn't exist, check for cached meta to build file path
+		if ( ! $post ) {
+			Logger::warning(
+				'Post not found, attempting deletion with cached meta',
+				array( 'post_id' => $post_id )
+			);
+
+			// Try to get cached file path from meta
+			$cached_path = get_post_meta( $post_id, '_jamstack_file_path', true );
+
+			if ( empty( $cached_path ) ) {
+				Logger::error(
+					'Cannot determine file path for deleted post',
+					array( 'post_id' => $post_id )
+				);
+				return new \WP_Error(
+					'post_not_found',
+					__( 'Post not found and no cached file path available', 'wp-jamstack-sync' )
+				);
+			}
+
+			$file_path = $cached_path;
+		} else {
+			// Post exists, generate file path normally
+			$adapter   = new \WPJamstack\Adapters\Hugo_Adapter();
+			$file_path = $adapter->get_file_path( $post );
+
+			// Cache the file path for future deletions
+			update_post_meta( $post_id, '_jamstack_file_path', $file_path );
+		}
+
+		$git_api = new Git_API();
+		$deleted = array();
+
+		// Delete Markdown file
+		Logger::info( 'Deleting Markdown file', array( 'path' => $file_path ) );
+
+		$result = $git_api->delete_file(
+			$file_path,
+			sprintf( 'Delete: %s', $post ? $post->post_title : "Post #{$post_id}" )
+		);
+
+		if ( is_wp_error( $result ) ) {
+			Logger::error(
+				'Failed to delete Markdown file',
+				array(
+					'path'  => $file_path,
+					'error' => $result->get_error_message(),
+				)
+			);
+			return $result;
+		}
+
+		$deleted[] = $file_path;
+		Logger::success( 'Markdown file deleted', array( 'path' => $file_path ) );
+
+		// Delete images directory
+		$images_dir = "static/images/{$post_id}";
+		Logger::info( 'Checking for images to delete', array( 'dir' => $images_dir ) );
+
+		$image_files = $git_api->list_directory( $images_dir );
+
+		if ( is_wp_error( $image_files ) ) {
+			// Log but don't fail - images might not exist
+			Logger::warning(
+				'Could not list image directory',
+				array(
+					'dir'   => $images_dir,
+					'error' => $image_files->get_error_message(),
+				)
+			);
+		} elseif ( ! empty( $image_files ) ) {
+			Logger::info(
+				'Found images to delete',
+				array(
+					'count' => count( $image_files ),
+					'dir'   => $images_dir,
+				)
+			);
+
+			// Delete each image file
+			foreach ( $image_files as $file ) {
+				if ( 'file' !== $file['type'] ) {
+					continue; // Skip directories
+				}
+
+				$image_path = $file['path'];
+				Logger::info( 'Deleting image', array( 'path' => $image_path ) );
+
+				$image_result = $git_api->delete_file(
+					$image_path,
+					sprintf( 'Delete image: %s', basename( $image_path ) )
+				);
+
+				if ( is_wp_error( $image_result ) ) {
+					// Log but continue with other images
+					Logger::warning(
+						'Failed to delete image',
+						array(
+							'path'  => $image_path,
+							'error' => $image_result->get_error_message(),
+						)
+					);
+				} else {
+					$deleted[] = $image_path;
+					Logger::success( 'Image deleted', array( 'path' => $image_path ) );
+				}
+			}
+		} else {
+			Logger::info( 'No images found to delete', array( 'dir' => $images_dir ) );
+		}
+
+		Logger::success(
+			'Deletion completed',
+			array(
+				'post_id'       => $post_id,
+				'deleted_count' => count( $deleted ),
+			)
+		);
+
+		return array(
+			'post_id' => $post_id,
+			'success' => true,
+			'deleted' => $deleted,
+		);
+	}
 }

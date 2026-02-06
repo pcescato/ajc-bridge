@@ -107,6 +107,9 @@ class Columns {
 			Queue_Manager::STATUS_SUCCESS    => '<span class="dashicons dashicons-yes-alt"></span>',
 			Queue_Manager::STATUS_ERROR      => '<span class="dashicons dashicons-warning"></span>',
 			Queue_Manager::STATUS_CANCELLED  => '<span class="dashicons dashicons-dismiss"></span>',
+			'deleting'                       => '<span class="dashicons dashicons-trash"></span>',
+			'deleted'                        => '<span class="dashicons dashicons-trash"></span>',
+			'delete_error'                   => '<span class="dashicons dashicons-warning"></span>',
 			'unknown'                        => '<span class="dashicons dashicons-minus"></span>',
 		);
 
@@ -127,6 +130,9 @@ class Columns {
 			Queue_Manager::STATUS_SUCCESS    => __( 'Success', 'wp-jamstack-sync' ),
 			Queue_Manager::STATUS_ERROR      => __( 'Error', 'wp-jamstack-sync' ),
 			Queue_Manager::STATUS_CANCELLED  => __( 'Cancelled', 'wp-jamstack-sync' ),
+			'deleting'                       => __( 'Deleting', 'wp-jamstack-sync' ),
+			'deleted'                        => __( 'Deleted', 'wp-jamstack-sync' ),
+			'delete_error'                   => __( 'Delete Error', 'wp-jamstack-sync' ),
 			'unknown'                        => __( 'Not Synced', 'wp-jamstack-sync' ),
 		);
 
