@@ -40,12 +40,24 @@ class Admin {
 	 * @return void
 	 */
 	public static function add_menu_pages(): void {
+		// Settings page - Admin only
 		add_options_page(
 			__( 'Jamstack Sync Settings', 'atomic-jamstack-connector' ),
 			__( 'Jamstack Sync', 'atomic-jamstack-connector' ),
 			'manage_options',
 			Settings::PAGE_SLUG,
 			array( Settings::class, 'render_page' )
+		);
+
+		// Sync History page - Authors and above
+		add_menu_page(
+			__( 'Sync History', 'atomic-jamstack-connector' ),
+			__( 'Sync History', 'atomic-jamstack-connector' ),
+			'publish_posts',
+			'atomic-jamstack-history',
+			array( Settings::class, 'render_history_page' ),
+			'dashicons-update',
+			26
 		);
 	}
 
@@ -57,8 +69,13 @@ class Admin {
 	 * @return void
 	 */
 	public static function enqueue_scripts( string $hook ): void {
-		// Only load on plugin settings page
-		if ( 'settings_page_' . Settings::PAGE_SLUG !== $hook ) {
+		// Load on both plugin settings page and history page
+		$allowed_pages = array(
+			'settings_page_' . Settings::PAGE_SLUG,
+			'toplevel_page_' . Settings::HISTORY_PAGE_SLUG,
+		);
+
+		if ( ! in_array( $hook, $allowed_pages, true ) ) {
 			return;
 		}
 

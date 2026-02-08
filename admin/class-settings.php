@@ -34,6 +34,11 @@ class Settings {
 	public const PAGE_SLUG = 'atomic-jamstack-settings';
 
 	/**
+	 * History page slug
+	 */
+	public const HISTORY_PAGE_SLUG = 'atomic-jamstack-history';
+
+	/**
 	 * Initialize settings
 	 *
 	 * @return void
@@ -421,10 +426,6 @@ class Settings {
 				   class="nav-tab <?php echo $active_tab === 'bulk' ? 'nav-tab-active' : ''; ?>">
 					<?php esc_html_e( 'Bulk Operations', 'atomic-jamstack-connector' ); ?>
 				</a>
-				<a href="?page=<?php echo esc_attr( self::PAGE_SLUG ); ?>&tab=monitor" 
-				   class="nav-tab <?php echo $active_tab === 'monitor' ? 'nav-tab-active' : ''; ?>">
-					<?php esc_html_e( 'Sync History', 'atomic-jamstack-connector' ); ?>
-				</a>
 			</h2>
 
 			<?php
@@ -433,15 +434,31 @@ class Settings {
 				case 'bulk':
 					self::render_bulk_tab();
 					break;
-				case 'monitor':
-					self::render_monitor_tab();
-					break;
 				case 'settings':
 				default:
 					self::render_settings_tab();
 					break;
 			}
 			?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render standalone sync history page
+	 *
+	 * @return void
+	 */
+	public static function render_history_page(): void {
+		if ( ! current_user_can( 'publish_posts' ) ) {
+			wp_die(
+				esc_html__( 'You do not have sufficient permissions to access this page.', 'atomic-jamstack-connector' )
+			);
+		}
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Sync History', 'atomic-jamstack-connector' ); ?></h1>
+			<?php self::render_monitor_tab(); ?>
 		</div>
 		<?php
 	}
@@ -634,13 +651,21 @@ class Settings {
 	 * @return void
 	 */
 	private static function render_monitor_tab(): void {
+		// Check if current user is admin
+		$is_admin = current_user_can( 'manage_options' );
+		$current_user_id = get_current_user_id();
+
 		?>
 		<h2><?php esc_html_e( 'Sync History', 'atomic-jamstack-connector' ); ?></h2>
-		<p><?php esc_html_e( 'View the most recent sync operations and their status.', 'atomic-jamstack-connector' ); ?></p>
+		<?php if ( $is_admin ) : ?>
+			<p><?php esc_html_e( 'View the most recent sync operations and their status.', 'atomic-jamstack-connector' ); ?></p>
+		<?php else : ?>
+			<p><?php esc_html_e( 'View your recent sync operations and their status.', 'atomic-jamstack-connector' ); ?></p>
+		<?php endif; ?>
 
 		<?php
-		// Query posts with sync meta
-		$query = new \WP_Query( array(
+		// Build query args
+		$query_args = array(
 			'post_type'      => array( 'post', 'page' ),
 			'post_status'    => 'any',
 			'posts_per_page' => 20,
@@ -653,7 +678,15 @@ class Settings {
 					'compare' => 'EXISTS',
 				),
 			),
-		) );
+		);
+
+		// Filter by author for non-admin users
+		if ( ! $is_admin ) {
+			$query_args['author'] = $current_user_id;
+		}
+
+		// Query posts with sync meta
+		$query = new \WP_Query( $query_args );
 
 		if ( ! $query->have_posts() ) {
 			?>
@@ -674,6 +707,11 @@ class Settings {
 					<th scope="col" class="manage-column" style="width: 80px;">
 						<?php esc_html_e( 'ID', 'atomic-jamstack-connector' ); ?>
 					</th>
+					<?php if ( $is_admin ) : ?>
+						<th scope="col" class="manage-column" style="width: 120px;">
+							<?php esc_html_e( 'Author', 'atomic-jamstack-connector' ); ?>
+						</th>
+					<?php endif; ?>
 					<th scope="col" class="manage-column" style="width: 100px;">
 						<?php esc_html_e( 'Type', 'atomic-jamstack-connector' ); ?>
 					</th>
@@ -746,6 +784,15 @@ class Settings {
 							</strong>
 						</td>
 						<td><?php echo esc_html( $post_id ); ?></td>
+						<?php if ( $is_admin ) : ?>
+							<td>
+								<?php
+								$author_id = get_post_field( 'post_author', $post_id );
+								$author = get_user_by( 'id', $author_id );
+								echo $author ? esc_html( $author->display_name ) : esc_html__( 'Unknown', 'atomic-jamstack-connector' );
+								?>
+							</td>
+						<?php endif; ?>
 						<td><?php echo esc_html( ucfirst( $post_type ) ); ?></td>
 						<td>
 							<span style="color: <?php echo esc_attr( $status_color ); ?>; font-size: 20px;" title="<?php echo esc_attr( $status_label ); ?>">
@@ -914,7 +961,7 @@ class Settings {
 	public static function ajax_sync_single(): void {
 		check_ajax_referer( 'atomic-jamstack-sync-single', 'nonce' );
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'publish_posts' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Insufficient permissions', 'atomic-jamstack-connector' ) ) );
 		}
 
