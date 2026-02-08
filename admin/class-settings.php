@@ -225,16 +225,25 @@ class Settings {
 		}
 
 		// Sanitize and encrypt token
-		// CRITICAL: Only update token if present in POST and not empty/masked
-		// This prevents token loss when saving from other tabs
+		// CRITICAL: Token must ALWAYS be preserved unless explicitly being updated
 		if ( isset( $input['github_token'] ) ) {
 			$token = sanitize_text_field( trim( $input['github_token'] ) );
 			
 			// Only update if not empty and not the masked placeholder
 			if ( ! empty( $token ) && $token !== '••••••••••••••••' ) {
 				$sanitized['github_token'] = self::encrypt_token( $token );
+			} else {
+				// CRITICAL: Explicitly preserve existing token if input is empty or masked
+				if ( ! empty( $existing_settings['github_token'] ) ) {
+					$sanitized['github_token'] = $existing_settings['github_token'];
+				}
 			}
-			// If empty or masked, the merge will keep existing token
+		} else {
+			// Token field not in POST (saving from different tab)
+			// CRITICAL: Explicitly preserve it
+			if ( ! empty( $existing_settings['github_token'] ) ) {
+				$sanitized['github_token'] = $existing_settings['github_token'];
+			}
 		}
 		// If not in POST at all (different tab), merge will preserve existing token
 
