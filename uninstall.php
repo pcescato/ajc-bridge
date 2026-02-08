@@ -14,10 +14,10 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 
 // Load plugin settings to check if data deletion is enabled
-$settings = get_option( 'atomic_jamstack_settings', array() );
+$jamstack_settings = get_option( 'atomic_jamstack_settings', array() );
 
 // Only proceed with cleanup if user explicitly enabled data deletion
-if ( empty( $settings['delete_data_on_uninstall'] ) ) {
+if ( empty( $jamstack_settings['delete_data_on_uninstall'] ) ) {
 	// User wants to keep data - exit without doing anything
 	return;
 }
@@ -30,7 +30,7 @@ if ( empty( $settings['delete_data_on_uninstall'] ) ) {
 delete_option( 'atomic_jamstack_settings' );
 
 // 2. Delete all post meta created by the plugin
-$post_meta_keys = array(
+$jamstack_post_meta_keys = array(
 	'_jamstack_sync_status',        // Sync status (pending, processing, success, failed)
 	'_jamstack_sync_last',          // Last sync timestamp
 	'_jamstack_file_path',          // GitHub file path for the post
@@ -38,8 +38,8 @@ $post_meta_keys = array(
 	'_jamstack_sync_start_time',    // Sync start time for timeout detection
 );
 
-foreach ( $post_meta_keys as $meta_key ) {
-	delete_post_meta_by_key( $meta_key );
+foreach ( $jamstack_post_meta_keys as $jamstack_meta_key ) {
+	delete_post_meta_by_key( $jamstack_meta_key );
 }
 
 // 3. Delete all transients (locks) created by the plugin
@@ -62,26 +62,26 @@ $wpdb->query(
 // Action Scheduler stores actions in custom tables or options
 if ( class_exists( 'ActionScheduler_DBStore' ) ) {
 	// Action Scheduler 3.0+ uses custom tables
-	$store = \ActionScheduler_Store::instance();
+	$jamstack_store = \ActionScheduler_Store::instance();
 	
 	// Get all pending/in-progress actions for our plugin
-	$action_groups = array(
+	$jamstack_action_groups = array(
 		'atomic_jamstack_sync',
 		'atomic_jamstack_deletion',
 	);
 	
-	foreach ( $action_groups as $group ) {
-		$actions = $store->query_actions(
+	foreach ( $jamstack_action_groups as $jamstack_group ) {
+		$jamstack_actions = $jamstack_store->query_actions(
 			array(
-				'group'    => $group,
+				'group'    => $jamstack_group,
 				'status'   => \ActionScheduler_Store::STATUS_PENDING,
 				'per_page' => -1,
 			)
 		);
 		
 		// Cancel each action
-		foreach ( $actions as $action_id ) {
-			$store->cancel_action( $action_id );
+		foreach ( $jamstack_actions as $jamstack_action_id ) {
+			$jamstack_store->cancel_action( $jamstack_action_id );
 		}
 	}
 }

@@ -3,7 +3,7 @@
  * Plugin Name: Atomic Jamstack Connector
  * Plugin URI: https://github.com/pcescato/atomic-jamstack-connector
  * Description: Automated WordPress to Hugo publishing system with async GitHub API integration.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Requires at least: 6.9
  * Requires PHP: 8.1
  * Author: Pascal CESCATO
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'ATOMIC_JAMSTACK_VERSION', '1.0.0' );
+define( 'ATOMIC_JAMSTACK_VERSION', '1.1.0' );
 define( 'ATOMIC_JAMSTACK_PATH', plugin_dir_path( __FILE__ ) );
 define( 'ATOMIC_JAMSTACK_URL', plugin_dir_url( __FILE__ ) );
 

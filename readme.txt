@@ -20,6 +20,7 @@ Atomic Jamstack Connector is a production-grade WordPress plugin that automatica
 * **Custom Front Matter Templates**: Define your own YAML or TOML Front Matter with placeholders for maximum Hugo theme compatibility (NEW!)
 * **Tabbed Settings Interface**: Organized settings with General and GitHub Credentials tabs for better UX (NEW!)
 * **Enhanced Security**: GitHub token masking and preservation, never exposed in UI (NEW!)
+* **Clean Uninstall Option**: Choose to preserve or permanently delete all plugin data on uninstall (NEW!)
 * **Async Processing**: Background sync using Action Scheduler (no blocking)
 * **Image Optimization**: Automatic WebP and AVIF generation with Imagick
 * **Deletion Management**: Automatic cleanup when posts are trashed/deleted
@@ -57,7 +58,7 @@ Atomic Jamstack Connector is a production-grade WordPress plugin that automatica
 
 1. Upload the plugin files to `/wp-content/plugins/atomic-jamstack-connector/`
 2. Activate the plugin through the 'Plugins' menu in WordPress
-3. Go to Settings > Atomic Jamstack Connector
+3. Go to Jamstack Sync > Settings (new unified menu)
 4. Navigate to the "GitHub Credentials" tab
 5. Configure your GitHub credentials:
    - Personal Access Token (masked for security)
@@ -67,8 +68,8 @@ Atomic Jamstack Connector is a production-grade WordPress plugin that automatica
 7. Go to the "General" tab to configure:
    - Custom Front Matter template (optional)
    - Content types to sync
-   - Image quality settings
    - Debug mode
+   - Clean uninstall option (optional)
 8. Save settings and start publishing!
 
 == Frequently Asked Questions ==
@@ -117,6 +118,10 @@ Go to Settings > General > Debug Settings and check "Enable detailed logging for
 
 Yes! The token is encrypted before storage and masked in the UI (displayed as ••••••••••). The token is never exposed in plain text and is only used for GitHub API calls.
 
+= What happens to my data when I uninstall the plugin? =
+
+By default, all settings and sync data are **preserved** when you uninstall the plugin. This allows you to reinstall without reconfiguring. If you want to permanently delete all plugin data, enable the "Delete data on uninstall" checkbox in Settings > General > Debug Settings before uninstalling. This will remove all settings, post meta, and sync logs from the database. Note: Log files in the filesystem and content in your GitHub repository are not affected.
+
 == Screenshots ==
 
 1. Settings page with tabbed interface (General tab)
@@ -139,15 +144,26 @@ Yes! The token is encrypted before storage and masked in the UI (displayed as �
 * NEW: Author access - Authors can sync their own posts
 * NEW: Role-based sync history filtering
 * NEW: {{id}} placeholder for dynamic post ID in Front Matter
+* NEW: Conditional clean uninstall - User control over data deletion
+* NEW: Settings merge logic to prevent data loss across tab saves
 * IMPROVED: Enhanced debug logging with real-time file path and size display
 * IMPROVED: Upload directory error handling with fallback to WordPress debug.log
 * IMPROVED: Log file protection with .htaccess and index.php
 * IMPROVED: Settings UI with clearer descriptions and contextual help
 * IMPROVED: Better UX with active tab preservation after save
+* IMPROVED: Error handling with try-catch-finally blocks
+* IMPROVED: Lock management guarantees release even on fatal errors
+* IMPROVED: GitHub API logging with detailed status codes and messages
+* IMPROVED: All API timeouts increased to 60 seconds
 * FIXED: Commit link building (missing repository information)
 * FIXED: Image path generation ({{id}} placeholder not working)
 * FIXED: Logging system (files not being created)
+* FIXED: PHP 8 type errors (explode on null values)
+* FIXED: Status management - Posts never stuck in "processing" state
+* FIXED: Settings data loss when saving from different tabs
 * FIXED: WordPress Coding Standards compliance (translation comments, escape output, nonce verification)
+* SECURITY: Added parse_repo() validation to prevent null pointer exceptions
+* SECURITY: Implemented safety timeout (5 minutes) for stuck syncs
 * Documentation: Added Front Matter template examples for popular Hugo themes
 
 = 1.0.0 =
@@ -163,7 +179,7 @@ Yes! The token is encrypted before storage and masked in the UI (displayed as �
 == Upgrade Notice ==
 
 = 1.1.0 =
-Major update with customizable Front Matter templates, enhanced security, improved UI, and author access. Recommended for all users. After upgrading, re-sync your posts to apply the new Front Matter format.
+Major update with customizable Front Matter templates, enhanced security, improved UI, author access, and robust error handling. New features include PHP 8 compatibility fixes, settings merge logic to prevent data loss, and optional clean uninstall. Recommended for all users. After upgrading, re-sync your posts to apply the new Front Matter format.
 
 = 1.0.0 =
 Initial release of Atomic Jamstack Connector.
