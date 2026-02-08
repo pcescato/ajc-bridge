@@ -14,6 +14,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 
 // Load plugin settings to check if data deletion is enabled
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 $jamstack_settings = get_option( 'atomic_jamstack_settings', array() );
 
 // Only proceed with cleanup if user explicitly enabled data deletion
@@ -30,6 +31,7 @@ if ( empty( $jamstack_settings['delete_data_on_uninstall'] ) ) {
 delete_option( 'atomic_jamstack_settings' );
 
 // 2. Delete all post meta created by the plugin
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 $jamstack_post_meta_keys = array(
 	'_jamstack_sync_status',        // Sync status (pending, processing, success, failed)
 	'_jamstack_sync_last',          // Last sync timestamp
@@ -38,6 +40,7 @@ $jamstack_post_meta_keys = array(
 	'_jamstack_sync_start_time',    // Sync start time for timeout detection
 );
 
+// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 foreach ( $jamstack_post_meta_keys as $jamstack_meta_key ) {
 	delete_post_meta_by_key( $jamstack_meta_key );
 }
@@ -62,15 +65,19 @@ $wpdb->query(
 // Action Scheduler stores actions in custom tables or options
 if ( class_exists( 'ActionScheduler_DBStore' ) ) {
 	// Action Scheduler 3.0+ uses custom tables
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 	$jamstack_store = \ActionScheduler_Store::instance();
 	
 	// Get all pending/in-progress actions for our plugin
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 	$jamstack_action_groups = array(
 		'atomic_jamstack_sync',
 		'atomic_jamstack_deletion',
 	);
 	
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 	foreach ( $jamstack_action_groups as $jamstack_group ) {
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 		$jamstack_actions = $jamstack_store->query_actions(
 			array(
 				'group'    => $jamstack_group,
@@ -80,6 +87,7 @@ if ( class_exists( 'ActionScheduler_DBStore' ) ) {
 		);
 		
 		// Cancel each action
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 		foreach ( $jamstack_actions as $jamstack_action_id ) {
 			$jamstack_store->cancel_action( $jamstack_action_id );
 		}

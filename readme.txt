@@ -179,7 +179,7 @@ By default, all settings and sync data are **preserved** when you uninstall the 
 == Upgrade Notice ==
 
 = 1.1.0 =
-Major update with customizable Front Matter templates, enhanced security, improved UI, author access, and robust error handling. New features include PHP 8 compatibility fixes, settings merge logic to prevent data loss, and optional clean uninstall. Recommended for all users. After upgrading, re-sync your posts to apply the new Front Matter format.
+Major update with customizable Front Matter templates, enhanced security, improved UI, author access, and robust error handling. Includes PHP 8 fixes and optional clean uninstall. Recommended for all users.
 
 = 1.0.0 =
 Initial release of Atomic Jamstack Connector.
