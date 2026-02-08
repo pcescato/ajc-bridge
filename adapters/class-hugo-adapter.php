@@ -61,15 +61,16 @@ class Hugo_Adapter implements Adapter_Interface {
 		$author_name = $author ? $author->display_name : 'Unknown';
 
 		// Prepare image paths
+		// Use {{id}} placeholder initially, then replace it before using in template
 		$image_avif = '';
 		$image_webp = '';
 		$image_original = '';
 
 		if ( ! empty( $featured_image_path ) ) {
-			// Use processed image paths
-			$post_id = $post->ID;
-			$image_avif = sprintf( '/images/%d/featured.avif', $post_id );
-			$image_webp = sprintf( '/images/%d/featured.webp', $post_id );
+			// Use processed image paths - replace {{id}} with actual post ID
+			$post_id_str = (string) (int) $post->ID;
+			$image_avif = '/images/' . $post_id_str . '/featured.avif';
+			$image_webp = '/images/' . $post_id_str . '/featured.webp';
 			$image_original = $featured_image_path;
 		} else {
 			// Try to get original featured image
@@ -81,17 +82,17 @@ class Hugo_Adapter implements Adapter_Interface {
 
 		// Define placeholder replacements
 		$replacements = array(
+			'{{id}}'             => (string) (int) $post->ID, // Cast to int for security, then to string for replacement
 			'{{title}}'          => $post->post_title,
 			'{{date}}'           => get_the_date( 'c', $post ),
 			'{{author}}'         => $author_name,
 			'{{slug}}'           => $post->post_name,
-			'{{id}}'             => (string) (int) $post->ID, // Cast to int for security, then to string for replacement
 			'{{image_avif}}'     => $image_avif,
 			'{{image_webp}}'     => $image_webp,
 			'{{image_original}}' => $image_original,
 		);
 
-		// Replace placeholders
+		// Replace all placeholders
 		$processed = str_replace(
 			array_keys( $replacements ),
 			array_values( $replacements ),
