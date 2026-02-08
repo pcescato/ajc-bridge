@@ -45,10 +45,32 @@ class Settings {
 	 */
 	public static function init(): void {
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
+		add_action( 'admin_init', array( __CLASS__, 'handle_settings_redirect' ) );
 		add_action( 'wp_ajax_atomic_jamstack_test_connection', array( __CLASS__, 'ajax_test_connection' ) );
 		add_action( 'wp_ajax_atomic_jamstack_bulk_sync', array( __CLASS__, 'ajax_bulk_sync' ) );
 		add_action( 'wp_ajax_atomic_jamstack_get_stats', array( __CLASS__, 'ajax_get_stats' ) );
 		add_action( 'wp_ajax_atomic_jamstack_sync_single', array( __CLASS__, 'ajax_sync_single' ) );
+	}
+
+	/**
+	 * Handle redirect after settings save to preserve active tab
+	 *
+	 * @return void
+	 */
+	public static function handle_settings_redirect(): void {
+		// Check if we're saving settings
+		if ( ! isset( $_POST['option_page'] ) || $_POST['option_page'] !== self::PAGE_SLUG ) {
+			return;
+		}
+
+		// Check if settings_tab was submitted
+		if ( isset( $_POST['settings_tab'] ) ) {
+			$settings_tab = sanitize_key( $_POST['settings_tab'] );
+			// Add filter to modify redirect URL
+			add_filter( 'wp_redirect', function( $location ) use ( $settings_tab ) {
+				return add_query_arg( 'settings_tab', $settings_tab, $location );
+			} );
+		}
 	}
 
 	/**
@@ -66,85 +88,95 @@ class Settings {
 			)
 		);
 
-		// GitHub Settings Section
-		add_settings_section(
-			'atomic_jamstack_github_section',
-			__( 'GitHub Configuration', 'atomic-jamstack-connector' ),
-			array( __CLASS__, 'render_github_section' ),
-			self::PAGE_SLUG
-		);
+		// Determine which tab we're on for conditional section registration
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$current_tab = isset( $_GET['settings_tab'] ) ? sanitize_key( $_GET['settings_tab'] ) : 'general';
 
-		add_settings_field(
-			'github_repo',
-			__( 'Repository', 'atomic-jamstack-connector' ),
-			array( __CLASS__, 'render_repo_field' ),
-			self::PAGE_SLUG,
-			'atomic_jamstack_github_section'
-		);
+		// GENERAL TAB SECTIONS
+		if ( 'general' === $current_tab ) {
+			// Post Types Section
+			add_settings_section(
+				'atomic_jamstack_posttypes_section',
+				__( 'Content Types', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_posttypes_section' ),
+				self::PAGE_SLUG
+			);
 
-		add_settings_field(
-			'github_branch',
-			__( 'Branch', 'atomic-jamstack-connector' ),
-			array( __CLASS__, 'render_branch_field' ),
-			self::PAGE_SLUG,
-			'atomic_jamstack_github_section'
-		);
+			add_settings_field(
+				'enabled_post_types',
+				__( 'Synchronize', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_posttypes_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_posttypes_section'
+			);
 
-		add_settings_field(
-			'github_token',
-			__( 'Personal Access Token', 'atomic-jamstack-connector' ),
-			array( __CLASS__, 'render_token_field' ),
-			self::PAGE_SLUG,
-			'atomic_jamstack_github_section'
-		);
+			// Hugo Settings Section
+			add_settings_section(
+				'atomic_jamstack_hugo_section',
+				__( 'Hugo Configuration', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_hugo_section' ),
+				self::PAGE_SLUG
+			);
 
-		// Debug Settings Section
-		add_settings_section(
-			'atomic_jamstack_debug_section',
-			__( 'Debug Settings', 'atomic-jamstack-connector' ),
-			array( __CLASS__, 'render_debug_section' ),
-			self::PAGE_SLUG
-		);
+			add_settings_field(
+				'hugo_front_matter_template',
+				__( 'Custom Front Matter Template', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_front_matter_template_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_hugo_section'
+			);
 
-		add_settings_field(
-			'debug_mode',
-			__( 'Enable Debug Logging', 'atomic-jamstack-connector' ),
-			array( __CLASS__, 'render_debug_field' ),
-			self::PAGE_SLUG,
-			'atomic_jamstack_debug_section'
-		);
+			// Debug Settings Section
+			add_settings_section(
+				'atomic_jamstack_debug_section',
+				__( 'Debug Settings', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_debug_section' ),
+				self::PAGE_SLUG
+			);
 
-		// Post Types Section
-		add_settings_section(
-			'atomic_jamstack_posttypes_section',
-			__( 'Content Types', 'atomic-jamstack-connector' ),
-			array( __CLASS__, 'render_posttypes_section' ),
-			self::PAGE_SLUG
-		);
+			add_settings_field(
+				'debug_mode',
+				__( 'Enable Debug Logging', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_debug_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_debug_section'
+			);
+		}
 
-		add_settings_field(
-			'enabled_post_types',
-			__( 'Synchronize', 'atomic-jamstack-connector' ),
-			array( __CLASS__, 'render_posttypes_field' ),
-			self::PAGE_SLUG,
-			'atomic_jamstack_posttypes_section'
-		);
+		// GITHUB CREDENTIALS TAB SECTIONS
+		if ( 'credentials' === $current_tab ) {
+			// GitHub Settings Section
+			add_settings_section(
+				'atomic_jamstack_github_section',
+				__( 'GitHub Configuration', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_github_section' ),
+				self::PAGE_SLUG
+			);
 
-		// Hugo Settings Section
-		add_settings_section(
-			'atomic_jamstack_hugo_section',
-			__( 'Hugo Configuration', 'atomic-jamstack-connector' ),
-			array( __CLASS__, 'render_hugo_section' ),
-			self::PAGE_SLUG
-		);
+			add_settings_field(
+				'github_repo',
+				__( 'Repository', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_repo_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_github_section'
+			);
 
-		add_settings_field(
-			'hugo_front_matter_template',
-			__( 'Custom Front Matter Template', 'atomic-jamstack-connector' ),
-			array( __CLASS__, 'render_front_matter_template_field' ),
-			self::PAGE_SLUG,
-			'atomic_jamstack_hugo_section'
-		);
+			add_settings_field(
+				'github_branch',
+				__( 'Branch', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_branch_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_github_section'
+			);
+
+			add_settings_field(
+				'github_token',
+				__( 'Personal Access Token', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_token_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_github_section'
+			);
+		}
 	}
 
 	/**
@@ -180,9 +212,26 @@ class Settings {
 		}
 
 		// Sanitize and encrypt token
+		// IMPORTANT: Only update token if a new value is provided
+		// This prevents overwriting the existing token with empty value
 		if ( ! empty( $input['github_token'] ) ) {
 			$token = sanitize_text_field( trim( $input['github_token'] ) );
-			$sanitized['github_token'] = self::encrypt_token( $token );
+			// Only update if not the masked placeholder
+			if ( $token !== '••••••••••••••••' ) {
+				$sanitized['github_token'] = self::encrypt_token( $token );
+			} else {
+				// Keep existing token
+				$existing_settings = get_option( self::OPTION_NAME, array() );
+				if ( ! empty( $existing_settings['github_token'] ) ) {
+					$sanitized['github_token'] = $existing_settings['github_token'];
+				}
+			}
+		} else {
+			// Keep existing token if input is empty
+			$existing_settings = get_option( self::OPTION_NAME, array() );
+			if ( ! empty( $existing_settings['github_token'] ) ) {
+				$sanitized['github_token'] = $existing_settings['github_token'];
+			}
 		}
 
 		// Sanitize debug mode checkbox
@@ -314,24 +363,29 @@ class Settings {
 	 * @return void
 	 */
 	public static function render_token_field(): void {
-		$settings = get_option( self::OPTION_NAME, array() );
-		$value    = $settings['github_token'] ?? '';
+		$settings   = get_option( self::OPTION_NAME, array() );
+		$has_token  = ! empty( $settings['github_token'] );
+		$show_value = $has_token ? '••••••••••••••••' : '';
+		$placeholder = $has_token ? __( 'Token already saved', 'atomic-jamstack-connector' ) : 'ghp_xxxxxxxxxxxx';
 		?>
 		<input 
 			type="password" 
 			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[github_token]" 
-			value="<?php echo esc_attr( $value ); ?>" 
+			value="<?php echo esc_attr( $show_value ); ?>" 
 			class="regular-text" 
-			placeholder="ghp_xxxxxxxxxxxx"
-			required
+			placeholder="<?php echo esc_attr( $placeholder ); ?>"
 		/>
 		<p class="description">
 			<?php
-			printf(
-				/* translators: %s: GitHub tokens URL */
-				esc_html__( 'Create a token at %s with repo permissions.', 'atomic-jamstack-connector' ),
-				'<a href="https://github.com/settings/tokens" target="_blank" rel="noopener">github.com/settings/tokens</a>'
-			);
+			if ( $has_token ) {
+				esc_html_e( 'Token is securely stored. Leave blank to keep existing token, or enter a new token to update.', 'atomic-jamstack-connector' );
+			} else {
+				printf(
+					/* translators: %s: GitHub tokens URL */
+					esc_html__( 'Create a token at %s with repo permissions.', 'atomic-jamstack-connector' ),
+					'<a href="https://github.com/settings/tokens" target="_blank" rel="noopener">github.com/settings/tokens</a>'
+				);
+			}
 			?>
 		</p>
 		<p>
@@ -468,6 +522,7 @@ class Settings {
 			<code>{{date}}</code>, 
 			<code>{{author}}</code>, 
 			<code>{{slug}}</code>, 
+			<code>{{id}}</code>, 
 			<code>{{image_avif}}</code>, 
 			<code>{{image_webp}}</code>, 
 			<code>{{image_original}}</code>
@@ -544,7 +599,23 @@ class Settings {
 	 * @return void
 	 */
 	private static function render_settings_tab(): void {
+		// Get active settings sub-tab
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$settings_tab = isset( $_GET['settings_tab'] ) ? sanitize_key( $_GET['settings_tab'] ) : 'general';
 		?>
+		
+		<!-- Settings Sub-Tab Navigation -->
+		<h3 class="nav-tab-wrapper" style="margin-top: 0;">
+			<a href="?page=<?php echo esc_attr( self::PAGE_SLUG ); ?>&tab=settings&settings_tab=general" 
+			   class="nav-tab <?php echo 'general' === $settings_tab ? 'nav-tab-active' : ''; ?>">
+				<?php esc_html_e( 'General', 'atomic-jamstack-connector' ); ?>
+			</a>
+			<a href="?page=<?php echo esc_attr( self::PAGE_SLUG ); ?>&tab=settings&settings_tab=credentials" 
+			   class="nav-tab <?php echo 'credentials' === $settings_tab ? 'nav-tab-active' : ''; ?>">
+				<?php esc_html_e( 'GitHub Credentials', 'atomic-jamstack-connector' ); ?>
+			</a>
+		</h3>
+
 		<?php settings_errors( self::OPTION_NAME ); ?>
 		
 		<form method="post" action="options.php">
@@ -553,6 +624,8 @@ class Settings {
 			do_settings_sections( self::PAGE_SLUG );
 			submit_button();
 			?>
+			<!-- Hidden field to preserve active tab after save -->
+			<input type="hidden" name="settings_tab" value="<?php echo esc_attr( $settings_tab ); ?>" />
 		</form>
 		<?php
 	}

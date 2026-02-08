@@ -12,6 +12,7 @@ The plugin provides a textarea in **Settings > Hugo Configuration** where you ca
 - `{{date}}` - Post date (ISO 8601 format)
 - `{{author}}` - Post author display name
 - `{{slug}}` - Post slug/name
+- `{{id}}` - Post ID (numeric)
 - `{{image_avif}}` - Path to AVIF version of featured image
 - `{{image_webp}}` - Path to WebP version of featured image
 - `{{image_original}}` - Original featured image URL
@@ -80,6 +81,7 @@ title: "{{title}}"
 date: {{date}}
 author: "{{author}}"
 slug: "{{slug}}"
+id: {{id}}
 images:
   - "{{image_avif}}"
   - "{{image_webp}}"
@@ -88,12 +90,27 @@ draft: false
 ---
 ```
 
+### Using ID for Custom Paths
+
+```yaml
+---
+title: "{{title}}"
+date: {{date}}
+author: "{{author}}"
+resources:
+  - src: "/images/{{id}}/featured.avif"
+    name: "cover"
+  - src: "/images/{{id}}/featured.webp"
+    name: "cover-fallback"
+---
+```
+
 ## Important Notes
 
 1. **Include delimiters**: You must include `---` for YAML or `+++` for TOML in your template
 2. **Escaping**: The plugin handles proper escaping of values
 3. **Empty values**: If a placeholder has no value (e.g., no featured image), it will be replaced with an empty string
-4. **Security**: Templates are sanitized on save to prevent XSS attacks
+4. **Security**: Templates are sanitized on save to prevent XSS attacks. Post IDs are cast to integers for security.
 5. **Whitespace**: Preserve proper indentation for YAML structures
 
 ## Testing Your Template

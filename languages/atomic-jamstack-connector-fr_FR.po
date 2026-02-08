@@ -503,3 +503,23 @@ msgstr "Définissez votre Front Matter brut ici. Vous devez inclure vos propres 
 #: admin/class-settings.php:466
 msgid "Available placeholders:"
 msgstr "Espaces réservés disponibles :"
+
+
+#: admin/class-settings.php:595
+msgid "General"
+msgstr "Général"
+
+
+#: admin/class-settings.php:599
+msgid "GitHub Credentials"
+msgstr "Identifiants GitHub"
+
+
+#: admin/class-settings.php:354
+msgid "Token already saved"
+msgstr "Jeton déjà enregistré"
+
+
+#: admin/class-settings.php:363
+msgid "Token is securely stored. Leave blank to keep existing token, or enter a new token to update."
+msgstr "Le jeton est stocké en toute sécurité. Laissez vide pour conserver le jeton existant, ou entrez un nouveau jeton pour le mettre à jour."

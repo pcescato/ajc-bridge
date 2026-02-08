@@ -85,6 +85,7 @@ class Hugo_Adapter implements Adapter_Interface {
 			'{{date}}'           => get_the_date( 'c', $post ),
 			'{{author}}'         => $author_name,
 			'{{slug}}'           => $post->post_name,
+			'{{id}}'             => (string) (int) $post->ID, // Cast to int for security, then to string for replacement
 			'{{image_avif}}'     => $image_avif,
 			'{{image_webp}}'     => $image_webp,
 			'{{image_original}}' => $image_original,
