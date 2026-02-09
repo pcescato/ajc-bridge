@@ -47,6 +47,7 @@ class Settings {
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
 		add_action( 'admin_init', array( __CLASS__, 'handle_settings_redirect' ) );
 		add_action( 'wp_ajax_atomic_jamstack_test_connection', array( __CLASS__, 'ajax_test_connection' ) );
+		add_action( 'wp_ajax_atomic_jamstack_test_devto', array( __CLASS__, 'ajax_test_devto_connection' ) );
 		add_action( 'wp_ajax_atomic_jamstack_bulk_sync', array( __CLASS__, 'ajax_bulk_sync' ) );
 		add_action( 'wp_ajax_atomic_jamstack_get_stats', array( __CLASS__, 'ajax_get_stats' ) );
 		add_action( 'wp_ajax_atomic_jamstack_sync_single', array( __CLASS__, 'ajax_sync_single' ) );
@@ -195,6 +196,38 @@ class Settings {
 				self::PAGE_SLUG,
 				'atomic_jamstack_github_section'
 			);
+
+			// Dev.to Settings Section
+			add_settings_section(
+				'atomic_jamstack_devto_section',
+				__( 'Dev.to Publishing', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_devto_section' ),
+				self::PAGE_SLUG
+			);
+
+			add_settings_field(
+				'devto_api_key',
+				__( 'Dev.to API Key', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_devto_api_key_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_devto_section'
+			);
+
+			add_settings_field(
+				'devto_mode',
+				__( 'Publishing Mode', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_devto_mode_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_devto_section'
+			);
+
+			add_settings_field(
+				'devto_canonical_url',
+				__( 'Canonical URL Base', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_devto_canonical_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_devto_section'
+			);
 		}
 	}
 
@@ -293,6 +326,28 @@ class Settings {
 			$template = preg_replace( '#<style[^>]*?>.*?</style>#is', '', $template );
 			// Preserve the template as-is (it's just text data, not HTML to be rendered)
 			$sanitized['hugo_front_matter_template'] = sanitize_textarea_field( $template );
+		}
+
+		// Sanitize Dev.to API key
+		if ( isset( $input['devto_api_key'] ) ) {
+			$sanitized['devto_api_key'] = sanitize_text_field( trim( $input['devto_api_key'] ) );
+		}
+
+		// Sanitize Dev.to mode
+		if ( isset( $input['devto_mode'] ) ) {
+			$mode = $input['devto_mode'];
+			$sanitized['devto_mode'] = in_array( $mode, array( 'primary', 'secondary' ), true ) 
+				? $mode 
+				: 'primary';
+		}
+
+		// Sanitize Dev.to canonical URL
+		if ( isset( $input['devto_canonical_url'] ) ) {
+			$url = esc_url_raw( trim( $input['devto_canonical_url'] ) );
+			// Validate URL has scheme
+			if ( ! empty( $url ) && parse_url( $url, PHP_URL_SCHEME ) ) {
+				$sanitized['devto_canonical_url'] = rtrim( $url, '/' ); // Remove trailing slash
+			}
 		}
 
 		// CRITICAL: Merge sanitized values with existing settings
@@ -615,6 +670,123 @@ class Settings {
 			<code>{{image_avif}}</code>, 
 			<code>{{image_webp}}</code>, 
 			<code>{{image_original}}</code>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render Dev.to section description
+	 *
+	 * @return void
+	 */
+	public static function render_devto_section(): void {
+		?>
+		<p>
+			<?php
+			esc_html_e( 'Configure Dev.to API integration for publishing posts directly to your Dev.to account.', 'atomic-jamstack-connector' );
+			?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render Dev.to API key field
+	 *
+	 * @return void
+	 */
+	public static function render_devto_api_key_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$value    = $settings['devto_api_key'] ?? '';
+		?>
+		<input 
+			type="password" 
+			id="<?php echo esc_attr( self::OPTION_NAME ); ?>_devto_api_key"
+			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[devto_api_key]" 
+			value="<?php echo esc_attr( $value ); ?>" 
+			class="regular-text"
+			autocomplete="off"
+		/>
+		<p class="description">
+			<?php
+			printf(
+				/* translators: %s: Dev.to API settings URL */
+				esc_html__( 'Get your API key from %s', 'atomic-jamstack-connector' ),
+				'<a href="https://dev.to/settings/extensions" target="_blank" rel="noopener noreferrer">dev.to/settings/extensions</a>'
+			);
+			?>
+		</p>
+		<p>
+			<button type="button" id="devto_test_connection" class="button">
+				<?php esc_html_e( 'Test Connection', 'atomic-jamstack-connector' ); ?>
+			</button>
+			<span id="devto_test_result"></span>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render Dev.to mode field (primary/secondary)
+	 *
+	 * @return void
+	 */
+	public static function render_devto_mode_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$mode     = $settings['devto_mode'] ?? 'primary';
+		?>
+		<fieldset>
+			<label>
+				<input 
+					type="radio" 
+					name="<?php echo esc_attr( self::OPTION_NAME ); ?>[devto_mode]" 
+					value="primary" 
+					<?php checked( $mode, 'primary' ); ?>
+				/>
+				<strong><?php esc_html_e( 'Primary', 'atomic-jamstack-connector' ); ?></strong>
+			</label>
+			<p class="description">
+				<?php esc_html_e( 'Dev.to is the main publication (no canonical URL added)', 'atomic-jamstack-connector' ); ?>
+			</p>
+
+			<br><br>
+
+			<label>
+				<input 
+					type="radio" 
+					name="<?php echo esc_attr( self::OPTION_NAME ); ?>[devto_mode]" 
+					value="secondary" 
+					<?php checked( $mode, 'secondary' ); ?>
+				/>
+				<strong><?php esc_html_e( 'Secondary', 'atomic-jamstack-connector' ); ?></strong>
+			</label>
+			<p class="description">
+				<?php esc_html_e( 'Dev.to syndicates from another site (includes canonical_url to prevent SEO duplicate content)', 'atomic-jamstack-connector' ); ?>
+			</p>
+		</fieldset>
+		<?php
+	}
+
+	/**
+	 * Render Dev.to canonical URL field
+	 *
+	 * @return void
+	 */
+	public static function render_devto_canonical_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$value    = $settings['devto_canonical_url'] ?? '';
+		$mode     = $settings['devto_mode'] ?? 'primary';
+		$display  = 'secondary' === $mode ? '' : 'display:none;';
+		?>
+		<input 
+			type="url" 
+			id="devto_canonical_url_field"
+			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[devto_canonical_url]" 
+			value="<?php echo esc_attr( $value ); ?>" 
+			placeholder="https://yourblog.com"
+			class="regular-text"
+			style="<?php echo esc_attr( $display ); ?>"
+		/>
+		<p class="description" id="devto_canonical_url_description" style="<?php echo esc_attr( $display ); ?>">
+			<?php esc_html_e( 'Base URL of your primary site. Post slug will be appended automatically (e.g., https://yourblog.com/post-slug)', 'atomic-jamstack-connector' ); ?>
 		</p>
 		<?php
 	}
@@ -1204,5 +1376,47 @@ class Settings {
 			'message' => __( 'Post enqueued for synchronization', 'atomic-jamstack-connector' ),
 			'post_id' => $post_id,
 		) );
+	}
+
+	/**
+	 * AJAX handler for Dev.to connection test
+	 *
+	 * @return void
+	 */
+	public static function ajax_test_devto_connection(): void {
+		check_ajax_referer( 'atomic-jamstack-test-connection', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions', 'atomic-jamstack-connector' ) ) );
+		}
+
+		$api_key = isset( $_POST['api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['api_key'] ) ) : '';
+
+		if ( empty( $api_key ) ) {
+			wp_send_json_error( array( 'message' => __( 'API key required', 'atomic-jamstack-connector' ) ) );
+		}
+
+		// Temporarily set API key for test
+		$settings     = get_option( self::OPTION_NAME, array() );
+		$original_key = $settings['devto_api_key'] ?? '';
+		$settings['devto_api_key'] = $api_key;
+		update_option( self::OPTION_NAME, $settings );
+
+		// Test connection
+		require_once ATOMIC_JAMSTACK_PATH . 'core/class-devto-api.php';
+		$devto_api = new \AtomicJamstack\Core\DevTo_API();
+		$result    = $devto_api->test_connection();
+
+		// Restore original key
+		$settings['devto_api_key'] = $original_key;
+		update_option( self::OPTION_NAME, $settings );
+
+		if ( is_wp_error( $result ) ) {
+			Logger::error( 'Dev.to connection test failed', array( 'error' => $result->get_error_message() ) );
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		Logger::success( 'Dev.to connection test successful' );
+		wp_send_json_success( array( 'message' => __( 'Connection successful!', 'atomic-jamstack-connector' ) ) );
 	}
 }

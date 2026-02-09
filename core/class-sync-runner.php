@@ -63,6 +63,124 @@ class Sync_Runner {
 			return new \WP_Error( 'post_not_published', __( 'Only published posts can be synced', 'atomic-jamstack-connector' ) );
 		}
 
+		// Determine adapter type from settings
+		$settings = get_option( 'atomic_jamstack_settings', array() );
+		$adapter_type = $settings['adapter_type'] ?? 'hugo';
+
+		// Route to appropriate sync flow
+		if ( 'devto' === $adapter_type ) {
+			return self::sync_to_devto( $post );
+		}
+
+		// Default: GitHub/static site generator flow
+		return self::sync_to_github( $post );
+	}
+
+	/**
+	 * Sync post to Dev.to via API
+	 *
+	 * @param \WP_Post $post WordPress post object.
+	 *
+	 * @return array|\WP_Error Success array or WP_Error on failure.
+	 */
+	private static function sync_to_devto( \WP_Post $post ): array|\WP_Error {
+		$post_id = $post->ID;
+		Logger::info( 'Starting Dev.to sync', array( 'post_id' => $post_id ) );
+
+		// Update status
+		self::update_sync_meta( $post_id, 'processing' );
+
+		$sync_result = null;
+		$sync_error  = null;
+
+		try {
+			// Load Dev.to adapter
+			require_once ATOMIC_JAMSTACK_PATH . 'adapters/class-devto-adapter.php';
+			$adapter = new \AtomicJamstack\Adapters\DevTo_Adapter();
+
+			// Convert to markdown with front matter
+			$markdown = $adapter->convert( $post );
+
+			// Initialize API client
+			require_once ATOMIC_JAMSTACK_PATH . 'core/class-devto-api.php';
+			$devto_api = new DevTo_API();
+
+			// Check if article already published (get stored article ID)
+			$article_id = get_post_meta( $post_id, '_devto_article_id', true );
+			$article_id = $article_id ? (int) $article_id : null;
+
+			// Publish or update
+			$result = $devto_api->publish_article( $markdown, $article_id );
+
+			if ( is_wp_error( $result ) ) {
+				$sync_error = $result;
+				throw new \Exception( $result->get_error_message() );
+			}
+
+			// Store article ID for future updates
+			if ( isset( $result['id'] ) ) {
+				update_post_meta( $post_id, '_devto_article_id', $result['id'] );
+			}
+
+			// Store article URL if available
+			if ( isset( $result['url'] ) ) {
+				update_post_meta( $post_id, '_devto_article_url', $result['url'] );
+			}
+
+			$sync_result = $result;
+
+			Logger::success(
+				'Dev.to sync complete',
+				array(
+					'post_id'    => $post_id,
+					'article_id' => $result['id'] ?? null,
+					'url'        => $result['url'] ?? null,
+				)
+			);
+
+		} catch ( \Exception $e ) {
+			$sync_error = new \WP_Error( 'sync_exception', $e->getMessage() );
+			Logger::error(
+				'Dev.to sync exception',
+				array(
+					'post_id'   => $post_id,
+					'exception' => $e->getMessage(),
+				)
+			);
+		} finally {
+			// CRITICAL: Always update status and clear start time in finally block
+			// This ensures cleanup happens even if script crashes
+			if ( $sync_error ) {
+				self::update_sync_meta( $post_id, 'failed', $sync_error->get_error_message() );
+			} else {
+				self::update_sync_meta( $post_id, 'success' );
+				update_post_meta( $post_id, '_jamstack_sync_last', time() );
+			}
+
+			// Clear start time
+			delete_post_meta( $post_id, '_jamstack_sync_start_time' );
+		}
+
+		// Return result or error
+		if ( $sync_error ) {
+			return $sync_error;
+		}
+
+		return $sync_result ?? array( 'status' => 'success' );
+	}
+
+	/**
+	 * Sync post to GitHub (static site generator flow)
+	 *
+	 * Original sync logic for Hugo/Jekyll/etc via GitHub.
+	 *
+	 * @param \WP_Post $post WordPress post object.
+	 *
+	 * @return array|\WP_Error Success array or WP_Error on failure.
+	 */
+	private static function sync_to_github( \WP_Post $post ): array|\WP_Error {
+		$post_id = $post->ID;
+
 		// Test GitHub connection before heavy image processing to save resources
 		$git_api = new Git_API();
 		$connection_test = $git_api->test_connection();
