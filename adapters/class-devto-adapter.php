@@ -63,7 +63,7 @@ class DevTo_Adapter implements Adapter_Interface {
 	public function get_front_matter( \WP_Post $post ): array {
 		$front_matter = array(
 			'title'       => $post->post_title,
-			'published'   => 'publish' === $post->post_status,
+			'published'   => false, // Always sync as draft for manual review on Dev.to
 			'description' => $this->get_description( $post ),
 			'tags'        => $this->get_tags( $post->ID ),
 		);

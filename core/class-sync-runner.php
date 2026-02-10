@@ -68,6 +68,16 @@ class Sync_Runner {
 		$adapter_type = $settings['adapter_type'] ?? 'hugo';
 		$devto_mode   = $settings['devto_mode'] ?? 'primary';
 
+		// Log routing decision for debugging
+		Logger::info(
+			'Sync routing decision',
+			array(
+				'post_id'      => $post->ID,
+				'adapter_type' => $adapter_type,
+				'devto_mode'   => $devto_mode,
+			)
+		);
+
 		// Route to appropriate sync flow
 		if ( 'devto' === $adapter_type ) {
 			// Check if secondary mode (dual publishing)
@@ -78,10 +88,12 @@ class Sync_Runner {
 			}
 			
 			// Primary mode: Dev.to only
+			Logger::info( 'Dev.to primary mode: Dev.to only', array( 'post_id' => $post->ID ) );
 			return self::sync_to_devto( $post );
 		}
 
 		// Default: GitHub/static site generator flow only
+		Logger::info( 'GitHub-only mode', array( 'post_id' => $post->ID ) );
 		return self::sync_to_github( $post );
 	}
 
