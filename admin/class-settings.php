@@ -123,9 +123,25 @@ class Settings {
 			);
 
 			add_settings_field(
-				'adapter_type',
-				__( 'Publishing Destination', 'atomic-jamstack-connector' ),
-				array( __CLASS__, 'render_adapter_type_field' ),
+				'publishing_strategy',
+				__( 'Publishing Strategy', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_publishing_strategy_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_posttypes_section'
+			);
+
+			add_settings_field(
+				'github_site_url',
+				__( 'GitHub Site URL', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_github_site_url_field' ),
+				self::PAGE_SLUG,
+				'atomic_jamstack_posttypes_section'
+			);
+
+			add_settings_field(
+				'devto_site_url',
+				__( 'Dev.to Site URL', 'atomic-jamstack-connector' ),
+				array( __CLASS__, 'render_devto_site_url_field' ),
 				self::PAGE_SLUG,
 				'atomic_jamstack_posttypes_section'
 			);
@@ -217,22 +233,6 @@ class Settings {
 				'devto_api_key',
 				__( 'Dev.to API Key', 'atomic-jamstack-connector' ),
 				array( __CLASS__, 'render_devto_api_key_field' ),
-				self::PAGE_SLUG,
-				'atomic_jamstack_devto_section'
-			);
-
-			add_settings_field(
-				'devto_mode',
-				__( 'Publishing Mode', 'atomic-jamstack-connector' ),
-				array( __CLASS__, 'render_devto_mode_field' ),
-				self::PAGE_SLUG,
-				'atomic_jamstack_devto_section'
-			);
-
-			add_settings_field(
-				'devto_canonical_url',
-				__( 'Canonical URL Base', 'atomic-jamstack-connector' ),
-				array( __CLASS__, 'render_devto_canonical_field' ),
 				self::PAGE_SLUG,
 				'atomic_jamstack_devto_section'
 			);
@@ -343,13 +343,56 @@ class Settings {
 			}
 		}
 
-		// Sanitize adapter type (publishing destination)
-		if ( isset( $input['adapter_type'] ) ) {
-			$adapter = $input['adapter_type'];
-			// Whitelist validation
-			$sanitized['adapter_type'] = in_array( $adapter, array( 'hugo', 'devto' ), true ) 
-				? $adapter 
-				: 'hugo';
+		// Sanitize publishing strategy (5 modes)
+		if ( isset( $input['publishing_strategy'] ) ) {
+			$strategy = $input['publishing_strategy'];
+			$allowed  = array( 'wordpress_only', 'wordpress_devto', 'github_only', 'devto_only', 'dual_github_devto' );
+			$sanitized['publishing_strategy'] = in_array( $strategy, $allowed, true ) 
+				? $strategy 
+				: 'wordpress_only';
+		} else {
+			// Migration: If publishing_strategy not set, check for old adapter_type settings
+			if ( ! isset( $existing_settings['publishing_strategy'] ) ) {
+				if ( isset( $existing_settings['adapter_type'] ) ) {
+					$adapter_type = $existing_settings['adapter_type'];
+					$devto_mode   = $existing_settings['devto_mode'] ?? 'primary';
+
+					if ( 'hugo' === $adapter_type ) {
+						$sanitized['publishing_strategy'] = 'github_only';
+					} elseif ( 'devto' === $adapter_type && 'primary' === $devto_mode ) {
+						$sanitized['publishing_strategy'] = 'devto_only';
+					} elseif ( 'devto' === $adapter_type && 'secondary' === $devto_mode ) {
+						$sanitized['publishing_strategy'] = 'dual_github_devto';
+					} else {
+						$sanitized['publishing_strategy'] = 'wordpress_only';
+					}
+
+					Logger::info(
+						'Migrated old publishing settings to new strategy',
+						array(
+							'old_adapter_type' => $adapter_type,
+							'old_devto_mode'   => $devto_mode,
+							'new_strategy'     => $sanitized['publishing_strategy'],
+						)
+					);
+				}
+			}
+		}
+
+		// Sanitize GitHub Site URL
+		if ( isset( $input['github_site_url'] ) ) {
+			$url = esc_url_raw( trim( $input['github_site_url'] ) );
+			if ( ! empty( $url ) && wp_parse_url( $url, PHP_URL_SCHEME ) ) {
+				$sanitized['github_site_url'] = rtrim( $url, '/' );
+			}
+		}
+
+		// Sanitize Dev.to Site URL
+		if ( isset( $input['devto_site_url'] ) ) {
+			$url = esc_url_raw( trim( $input['devto_site_url'] ) );
+			if ( ! empty( $url ) && wp_parse_url( $url, PHP_URL_SCHEME ) ) {
+				$sanitized['devto_site_url'] = rtrim( $url, '/' );
+			}
 		}
 
 		// Sanitize Front Matter template
@@ -385,25 +428,6 @@ class Settings {
 				$sanitized['devto_api_key'] = $existing_settings['devto_api_key'];
 			}
 		}
-
-		// Sanitize Dev.to mode
-		if ( isset( $input['devto_mode'] ) ) {
-			$mode = $input['devto_mode'];
-			$sanitized['devto_mode'] = in_array( $mode, array( 'primary', 'secondary' ), true ) 
-				? $mode 
-				: 'primary';
-		}
-		// Note: Mode field not explicitly preserved - array_merge will handle it
-
-		// Sanitize Dev.to canonical URL
-		if ( isset( $input['devto_canonical_url'] ) ) {
-			$url = esc_url_raw( trim( $input['devto_canonical_url'] ) );
-			// Only set if valid URL with scheme, otherwise preserve existing or skip
-			if ( ! empty( $url ) && wp_parse_url( $url, PHP_URL_SCHEME ) ) {
-				$sanitized['devto_canonical_url'] = rtrim( $url, '/' ); // Remove trailing slash
-			}
-		}
-		// Note: Canonical URL field not explicitly preserved - array_merge will handle it
 
 		// CRITICAL: Merge sanitized values with existing settings
 		// This ensures fields not present in current POST are preserved
@@ -687,29 +711,60 @@ class Settings {
 	 *
 	 * @return void
 	 */
-	public static function render_adapter_type_field(): void {
+	/**
+	 * Render publishing strategy field
+	 *
+	 * @return void
+	 */
+	public static function render_publishing_strategy_field(): void {
 		$settings = get_option( self::OPTION_NAME, array() );
-		$adapter  = $settings['adapter_type'] ?? 'hugo';
+		$strategy = $settings['publishing_strategy'] ?? 'wordpress_only';
 
-		$adapters = array(
-			'hugo'  => array(
-				'label'       => __( 'GitHub Only (Hugo/Jekyll)', 'atomic-jamstack-connector' ),
-				'description' => __( 'Publish to Hugo/Jekyll static site via GitHub. Requires GitHub credentials.', 'atomic-jamstack-connector' ),
+		// Auto-migrate old settings for display
+		if ( 'wordpress_only' === $strategy && isset( $settings['adapter_type'] ) ) {
+			$adapter_type = $settings['adapter_type'] ?? 'hugo';
+			$devto_mode   = $settings['devto_mode'] ?? 'primary';
+
+			if ( 'hugo' === $adapter_type ) {
+				$strategy = 'github_only';
+			} elseif ( 'devto' === $adapter_type && 'primary' === $devto_mode ) {
+				$strategy = 'devto_only';
+			} elseif ( 'devto' === $adapter_type && 'secondary' === $devto_mode ) {
+				$strategy = 'dual_github_devto';
+			}
+		}
+
+		$strategies = array(
+			'wordpress_only'     => array(
+				'label'       => __( 'WordPress Only', 'atomic-jamstack-connector' ),
+				'description' => __( 'No external sync. Plugin settings available but sync disabled. WordPress remains your public site.', 'atomic-jamstack-connector' ),
 			),
-			'devto' => array(
-				'label'       => __( 'Dev.to Publishing', 'atomic-jamstack-connector' ),
-				'description' => __( 'Publish to Dev.to. Mode determined by Dev.to settings: Primary (Dev.to only) or Secondary (GitHub first, then Dev.to with canonical URL).', 'atomic-jamstack-connector' ),
+			'wordpress_devto'    => array(
+				'label'       => __( 'WordPress + dev.to Syndication', 'atomic-jamstack-connector' ),
+				'description' => __( 'WordPress remains your public site (canonical). Optionally syndicate posts to dev.to with canonical_url pointing to WordPress. Check "Publish to dev.to" per post.', 'atomic-jamstack-connector' ),
+			),
+			'github_only'        => array(
+				'label'       => __( 'GitHub Only (Headless)', 'atomic-jamstack-connector' ),
+				'description' => __( 'WordPress is headless (admin-only). All published posts sync to Hugo/Jekyll on GitHub Pages. WordPress frontend redirects to your static site.', 'atomic-jamstack-connector' ),
+			),
+			'devto_only'         => array(
+				'label'       => __( 'Dev.to Only (Headless)', 'atomic-jamstack-connector' ),
+				'description' => __( 'WordPress is headless. All published posts sync to dev.to. WordPress frontend redirects to dev.to.', 'atomic-jamstack-connector' ),
+			),
+			'dual_github_devto'  => array(
+				'label'       => __( 'Dual Publishing (GitHub + dev.to)', 'atomic-jamstack-connector' ),
+				'description' => __( 'WordPress is headless. Posts sync to GitHub (canonical). Optionally syndicate to dev.to with canonical_url. Check "Publish to dev.to" per post.', 'atomic-jamstack-connector' ),
 			),
 		);
 
-		foreach ( $adapters as $type => $info ) :
+		foreach ( $strategies as $type => $info ) :
 			?>
 			<label style="display: block; margin-bottom: 15px;">
 				<input
 					type="radio"
-					name="<?php echo esc_attr( self::OPTION_NAME ); ?>[adapter_type]"
+					name="<?php echo esc_attr( self::OPTION_NAME ); ?>[publishing_strategy]"
 					value="<?php echo esc_attr( $type ); ?>"
-					<?php checked( $adapter, $type ); ?>
+					<?php checked( $strategy, $type ); ?>
 				/>
 				<strong><?php echo esc_html( $info['label'] ); ?></strong>
 				<br />
@@ -721,7 +776,52 @@ class Settings {
 		endforeach;
 		?>
 		<p class="description">
-			<?php esc_html_e( 'Configure credentials in the Credentials tab. For Dev.to Secondary mode, configure both GitHub and Dev.to credentials.', 'atomic-jamstack-connector' ); ?>
+			<?php esc_html_e( 'Configure credentials in the Credentials tab. For headless modes, configure redirect URLs below.', 'atomic-jamstack-connector' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render GitHub site URL field
+	 *
+	 * @return void
+	 */
+	public static function render_github_site_url_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		// Try to migrate from old devto_canonical_url if github_site_url not set
+		$value = $settings['github_site_url'] ?? $settings['devto_canonical_url'] ?? '';
+		?>
+		<input 
+			type="url" 
+			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[github_site_url]" 
+			value="<?php echo esc_attr( $value ); ?>" 
+			placeholder="https://username.github.io/repo"
+			class="regular-text"
+		/>
+		<p class="description">
+			<?php esc_html_e( 'Your deployed Hugo/Jekyll site URL (e.g., GitHub Pages). Used for canonical URLs in dual publishing mode and WordPress frontend redirects in GitHub headless mode.', 'atomic-jamstack-connector' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render Dev.to site URL field
+	 *
+	 * @return void
+	 */
+	public static function render_devto_site_url_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$value    = $settings['devto_site_url'] ?? '';
+		?>
+		<input 
+			type="url" 
+			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[devto_site_url]" 
+			value="<?php echo esc_attr( $value ); ?>" 
+			placeholder="https://dev.to/username or https://yourblog.com"
+			class="regular-text"
+		/>
+		<p class="description">
+			<?php esc_html_e( 'Your dev.to profile URL or your WordPress site URL for canonical links. Used for WordPress frontend redirects in dev.to-only mode and as canonical URL when syndicating from WordPress.', 'atomic-jamstack-connector' ); ?>
 		</p>
 		<?php
 	}
@@ -819,73 +919,6 @@ class Settings {
 				<?php esc_html_e( 'Test Connection', 'atomic-jamstack-connector' ); ?>
 			</button>
 			<span id="devto_test_result"></span>
-		</p>
-		<?php
-	}
-
-	/**
-	 * Render Dev.to mode field (primary/secondary)
-	 *
-	 * @return void
-	 */
-	public static function render_devto_mode_field(): void {
-		$settings = get_option( self::OPTION_NAME, array() );
-		$mode     = $settings['devto_mode'] ?? 'primary';
-		?>
-		<fieldset>
-			<label>
-				<input 
-					type="radio" 
-					name="<?php echo esc_attr( self::OPTION_NAME ); ?>[devto_mode]" 
-					value="primary" 
-					<?php checked( $mode, 'primary' ); ?>
-				/>
-				<strong><?php esc_html_e( 'Primary', 'atomic-jamstack-connector' ); ?></strong>
-			</label>
-			<p class="description">
-				<?php esc_html_e( 'Dev.to only - no GitHub sync. Dev.to is the main publication.', 'atomic-jamstack-connector' ); ?>
-			</p>
-
-			<br><br>
-
-			<label>
-				<input 
-					type="radio" 
-					name="<?php echo esc_attr( self::OPTION_NAME ); ?>[devto_mode]" 
-					value="secondary" 
-					<?php checked( $mode, 'secondary' ); ?>
-				/>
-				<strong><?php esc_html_e( 'Secondary (Dual Publishing)', 'atomic-jamstack-connector' ); ?></strong>
-			</label>
-			<p class="description">
-				<?php esc_html_e( 'GitHub first (canonical), then Dev.to syndication. Requires both GitHub and Dev.to credentials. Dev.to article includes canonical_url to prevent SEO duplicate content.', 'atomic-jamstack-connector' ); ?>
-			</p>
-		</fieldset>
-		<?php
-	}
-
-	/**
-	 * Render Dev.to canonical URL field
-	 *
-	 * @return void
-	 */
-	public static function render_devto_canonical_field(): void {
-		$settings = get_option( self::OPTION_NAME, array() );
-		$value    = $settings['devto_canonical_url'] ?? '';
-		$mode     = $settings['devto_mode'] ?? 'primary';
-		$display  = 'secondary' === $mode ? '' : 'display:none;';
-		?>
-		<input 
-			type="url" 
-			id="devto_canonical_url_field"
-			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[devto_canonical_url]" 
-			value="<?php echo esc_attr( $value ); ?>" 
-			placeholder="https://yourblog.com"
-			class="regular-text"
-			style="<?php echo esc_attr( $display ); ?>"
-		/>
-		<p class="description" id="devto_canonical_url_description" style="<?php echo esc_attr( $display ); ?>">
-			<?php esc_html_e( 'Base URL of your primary site. Post slug will be appended automatically (e.g., https://yourblog.com/post-slug)', 'atomic-jamstack-connector' ); ?>
 		</p>
 		<?php
 	}

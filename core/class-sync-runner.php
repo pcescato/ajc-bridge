@@ -63,38 +63,132 @@ class Sync_Runner {
 			return new \WP_Error( 'post_not_published', __( 'Only published posts can be synced', 'atomic-jamstack-connector' ) );
 		}
 
-		// Determine adapter type from settings
+		// Get publishing strategy from settings
 		$settings = get_option( 'atomic_jamstack_settings', array() );
-		$adapter_type = $settings['adapter_type'] ?? 'hugo';
-		$devto_mode   = $settings['devto_mode'] ?? 'primary';
+		$strategy = $settings['publishing_strategy'] ?? 'wordpress_only';
 
-		// Log routing decision for debugging
+		// Migrate old settings to new strategy if needed
+		if ( 'wordpress_only' === $strategy && isset( $settings['adapter_type'] ) ) {
+			$strategy = self::migrate_old_settings( $settings );
+		}
+
 		Logger::info(
-			'Sync routing decision',
+			'Publishing strategy determined',
 			array(
-				'post_id'      => $post->ID,
-				'adapter_type' => $adapter_type,
-				'devto_mode'   => $devto_mode,
+				'post_id'  => $post->ID,
+				'strategy' => $strategy,
 			)
 		);
 
-		// Route to appropriate sync flow
-		if ( 'devto' === $adapter_type ) {
-			// Check if secondary mode (dual publishing)
-			if ( 'secondary' === $devto_mode ) {
-				// DUAL PUBLISHING: GitHub first (canonical), then Dev.to (syndication)
-				Logger::info( 'Dual publishing mode: GitHub + Dev.to', array( 'post_id' => $post->ID ) );
-				return self::sync_dual_publish( $post );
-			}
-			
-			// Primary mode: Dev.to only
-			Logger::info( 'Dev.to primary mode: Dev.to only', array( 'post_id' => $post->ID ) );
-			return self::sync_to_devto( $post );
+		// Route to appropriate sync handler
+		$results = array();
+
+		switch ( $strategy ) {
+			case 'wordpress_only':
+				// Plugin configured but sync disabled
+				Logger::info( 'Sync skipped (wordpress_only mode)', array( 'post_id' => $post_id ) );
+				return array(
+					'status'  => 'skipped',
+					'message' => __( 'WordPress-only mode - sync disabled', 'atomic-jamstack-connector' ),
+				);
+
+			case 'wordpress_devto':
+				// WordPress is canonical, optionally syndicate to dev.to
+				$publish_devto = get_post_meta( $post_id, '_atomic_jamstack_publish_devto', true );
+				
+				if ( '1' === $publish_devto ) {
+					$wordpress_url = $settings['wordpress_site_url'] ?? get_site_url();
+					$canonical_url = trailingslashit( $wordpress_url ) . $post->post_name;
+					
+					Logger::info( 'Syndicating to dev.to', array( 'post_id' => $post_id, 'canonical_url' => $canonical_url ) );
+					$results['devto'] = self::sync_to_devto( $post, $canonical_url );
+				} else {
+					Logger::info( 'Dev.to sync skipped (checkbox not checked)', array( 'post_id' => $post_id ) );
+					return array(
+						'status'  => 'skipped',
+						'message' => __( 'Dev.to sync not enabled for this post', 'atomic-jamstack-connector' ),
+					);
+				}
+				break;
+
+			case 'github_only':
+				// WordPress is headless, always sync to GitHub
+				Logger::info( 'Syncing to GitHub only', array( 'post_id' => $post_id ) );
+				$results['github'] = self::sync_to_github( $post );
+				break;
+
+			case 'devto_only':
+				// WordPress is headless, always sync to dev.to (no canonical)
+				Logger::info( 'Syncing to dev.to only', array( 'post_id' => $post_id ) );
+				$results['devto'] = self::sync_to_devto( $post, null );
+				break;
+
+			case 'dual_github_devto':
+				// WordPress is headless, always sync to GitHub, optionally to dev.to
+				Logger::info( 'Dual publishing mode: GitHub + optional dev.to', array( 'post_id' => $post_id ) );
+				
+				// Always sync to GitHub
+				$results['github'] = self::sync_to_github( $post );
+
+				// Optionally sync to dev.to if checkbox checked
+				$publish_devto = get_post_meta( $post_id, '_atomic_jamstack_publish_devto', true );
+				
+				if ( '1' === $publish_devto ) {
+					$github_url    = $settings['github_pages_url'] ?? '';
+					$canonical_url = trailingslashit( $github_url ) . 'posts/' . $post->post_name;
+					
+					Logger::info( 'Syndicating to dev.to', array( 'post_id' => $post_id, 'canonical_url' => $canonical_url ) );
+					$results['devto'] = self::sync_to_devto( $post, $canonical_url );
+				} else {
+					Logger::info( 'Dev.to sync skipped (checkbox not checked)', array( 'post_id' => $post_id ) );
+				}
+				break;
+
+			default:
+				Logger::error( 'Unknown publishing strategy', array( 'strategy' => $strategy ) );
+				return new \WP_Error(
+					'invalid_strategy',
+					sprintf(
+						/* translators: %s: strategy name */
+						__( 'Unknown publishing strategy: %s', 'atomic-jamstack-connector' ),
+						$strategy
+					)
+				);
 		}
 
-		// Default: GitHub/static site generator flow only
-		Logger::info( 'GitHub-only mode', array( 'post_id' => $post->ID ) );
-		return self::sync_to_github( $post );
+		return $results;
+	}
+
+	/**
+	 * Migrate old settings format to new publishing strategy
+	 *
+	 * Backward compatibility helper for users upgrading from old version.
+	 *
+	 * @param array $settings Current settings array.
+	 *
+	 * @return string New publishing strategy.
+	 */
+	private static function migrate_old_settings( array $settings ): string {
+		$adapter_type = $settings['adapter_type'] ?? 'hugo';
+		$devto_mode   = $settings['devto_mode'] ?? 'primary';
+
+		// Old: adapter_type = 'hugo' → New: github_only
+		if ( 'hugo' === $adapter_type ) {
+			return 'github_only';
+		}
+
+		// Old: adapter_type = 'devto', devto_mode = 'primary' → New: devto_only
+		if ( 'devto' === $adapter_type && 'primary' === $devto_mode ) {
+			return 'devto_only';
+		}
+
+		// Old: adapter_type = 'devto', devto_mode = 'secondary' → New: dual_github_devto
+		if ( 'devto' === $adapter_type && 'secondary' === $devto_mode ) {
+			return 'dual_github_devto';
+		}
+
+		// Default fallback
+		return 'wordpress_only';
 	}
 
 	/**
@@ -177,9 +271,17 @@ class Sync_Runner {
 	 *
 	 * @return array|\WP_Error Success array or WP_Error on failure.
 	 */
-	private static function sync_to_devto( \WP_Post $post ): array|\WP_Error {
+	/**
+	 * Sync post to Dev.to
+	 *
+	 * @param \WP_Post    $post          WordPress post object.
+	 * @param string|null $canonical_url Optional canonical URL for syndication.
+	 *
+	 * @return array|\WP_Error Success array with article data or WP_Error.
+	 */
+	private static function sync_to_devto( \WP_Post $post, ?string $canonical_url = null ): array|\WP_Error {
 		$post_id = $post->ID;
-		Logger::info( 'Starting Dev.to sync', array( 'post_id' => $post_id ) );
+		Logger::info( 'Starting Dev.to sync', array( 'post_id' => $post_id, 'canonical_url' => $canonical_url ) );
 
 		// Update status
 		self::update_sync_meta( $post_id, 'processing' );
@@ -192,8 +294,8 @@ class Sync_Runner {
 			require_once ATOMIC_JAMSTACK_PATH . 'adapters/class-devto-adapter.php';
 			$adapter = new \AtomicJamstack\Adapters\DevTo_Adapter();
 
-			// Convert to markdown with front matter
-			$markdown = $adapter->convert( $post );
+			// Convert to markdown with front matter (pass canonical URL)
+			$markdown = $adapter->convert( $post, $canonical_url );
 
 			// Initialize API client
 			require_once ATOMIC_JAMSTACK_PATH . 'core/class-devto-api.php';

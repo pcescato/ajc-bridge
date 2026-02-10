@@ -88,6 +88,7 @@ class Plugin {
 		require_once ATOMIC_JAMSTACK_PATH . 'core/class-sync-runner.php';
 		require_once ATOMIC_JAMSTACK_PATH . 'core/class-git-api.php';
 		require_once ATOMIC_JAMSTACK_PATH . 'core/class-media-processor.php';
+		require_once ATOMIC_JAMSTACK_PATH . 'core/class-headless-redirect.php';
 	}
 
 	/**
@@ -101,6 +102,9 @@ class Plugin {
 	private function init_core_systems(): void {
 		// Initialize queue manager (registers async processing hooks)
 		Queue_Manager::init();
+
+		// Initialize headless redirect handler
+		Headless_Redirect::init();
 
 		// TODO: Initialize logger when persistence is implemented
 		// Logger::init();
@@ -116,9 +120,11 @@ class Plugin {
 	private function load_admin(): void {
 		require_once ATOMIC_JAMSTACK_PATH . 'admin/class-settings.php';
 		require_once ATOMIC_JAMSTACK_PATH . 'admin/class-columns.php';
+		require_once ATOMIC_JAMSTACK_PATH . 'admin/class-post-meta-box.php';
 		require_once ATOMIC_JAMSTACK_PATH . 'admin/class-admin.php';
 		
 		\AtomicJamstack\Admin\Admin::init();
+		\AtomicJamstack\Admin\Post_Meta_Box::init();
 	}
 
 	/**

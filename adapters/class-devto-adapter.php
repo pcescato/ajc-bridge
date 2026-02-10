@@ -27,12 +27,13 @@ class DevTo_Adapter implements Adapter_Interface {
 	/**
 	 * Convert WordPress post to Dev.to Markdown format
 	 *
-	 * @param \WP_Post $post WordPress post object.
+	 * @param \WP_Post    $post          WordPress post object.
+	 * @param string|null $canonical_url Optional canonical URL for syndication.
 	 *
 	 * @return string Complete Markdown content with front matter.
 	 */
-	public function convert( \WP_Post $post ): string {
-		$front_matter = $this->get_front_matter( $post );
+	public function convert( \WP_Post $post, ?string $canonical_url = null ): string {
+		$front_matter = $this->get_front_matter( $post, $canonical_url );
 		$content      = $this->convert_content( $post->post_content );
 
 		return $this->build_markdown( $front_matter, $content );
@@ -56,11 +57,12 @@ class DevTo_Adapter implements Adapter_Interface {
 	 *
 	 * Extracts and formats post metadata according to Dev.to requirements.
 	 *
-	 * @param \WP_Post $post WordPress post object.
+	 * @param \WP_Post    $post          WordPress post object.
+	 * @param string|null $canonical_url Optional canonical URL for syndication.
 	 *
 	 * @return array Associative array of front matter fields.
 	 */
-	public function get_front_matter( \WP_Post $post ): array {
+	public function get_front_matter( \WP_Post $post, ?string $canonical_url = null ): array {
 		$front_matter = array(
 			'title'       => $post->post_title,
 			'published'   => false, // Always sync as draft for manual review on Dev.to
@@ -74,8 +76,7 @@ class DevTo_Adapter implements Adapter_Interface {
 			$front_matter['cover_image'] = $cover_image;
 		}
 
-		// Add canonical URL for secondary mode
-		$canonical_url = $this->get_canonical_url( $post );
+		// Add canonical URL if provided
 		if ( $canonical_url ) {
 			$front_matter['canonical_url'] = $canonical_url;
 		}
@@ -201,31 +202,6 @@ class DevTo_Adapter implements Adapter_Interface {
 	 *
 	 * @param \WP_Post $post WordPress post object.
 	 *
-	 * @return string|null Canonical URL or null.
-	 */
-	private function get_canonical_url( \WP_Post $post ): ?string {
-		$settings = get_option( 'atomic_jamstack_settings', array() );
-
-		$mode = $settings['devto_mode'] ?? 'primary';
-
-		// Only add canonical URL in secondary mode
-		if ( 'secondary' !== $mode ) {
-			return null;
-		}
-
-		$base_url = $settings['devto_canonical_url'] ?? '';
-
-		if ( empty( $base_url ) ) {
-			return null;
-		}
-
-		// Remove trailing slash from base
-		$base_url = rtrim( $base_url, '/' );
-
-		// Append post slug
-		return $base_url . '/' . $post->post_name;
-	}
-
 	/**
 	 * Get series name (primary category)
 	 *
