@@ -84,8 +84,10 @@ class Headless_Redirect {
 			)
 		);
 
-		// Use wp_redirect() instead of wp_safe_redirect() because we're redirecting to external domains
-		// The redirect URLs come from our own settings, so they are safe
+		// Use wp_redirect() instead of wp_safe_redirect() because we're redirecting to external domains.
+		// The redirect URLs come from admin-controlled plugin settings (not user input), are sanitized
+		// during save with esc_url_raw(), and validated for proper scheme. This is intentional and safe.
+		// phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect -- External redirect to admin-configured URLs
 		wp_redirect( $redirect_url, 301 );
 		exit;
 	}

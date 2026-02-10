@@ -20,3 +20,5 @@ Checkpoints are listed in chronological order. Checkpoint 1 is the oldest, highe
 | 21 | Uninstall API compliance and documentation | 021-uninstall-api-compliance-and-d.md |
 | 22 | Fix nonce sanitization warnings | 022-fix-nonce-sanitization-warnings.md |
 | 8 | Security and stability improvements | 008-security-and-stability-improve.md |
+| 9 | Dev.to adapter with dual publishing | 009-dev-to-adapter-with-dual-publi.md |
+| 10 | Refactor publishing strategies | 010-refactor-publishing-strategies.md |
