@@ -74,8 +74,7 @@ class Git_API {
 					'encrypted_length' => strlen( $encrypted_token ),
 					'decrypted_length' => $decrypted !== false ? strlen( $decrypted ) : 0,
 					'decryption_success' => $decrypted !== false && ! empty( $decrypted ),
-					'encrypted_preview' => substr( $encrypted_token, 0, 20 ) . '...',
-					'decrypted_preview' => $decrypted !== false ? substr( $decrypted, 0, 10 ) . '...' : 'FAILED',
+					// SECURITY: Never log token values, even partial previews
 				)
 			);
 			

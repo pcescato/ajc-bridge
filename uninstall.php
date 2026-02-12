@@ -40,15 +40,27 @@ if ( empty( $jamstack_settings['delete_data_on_uninstall'] ) ) {
 
 // 1. Delete plugin options using native WordPress API
 delete_option( 'atomic_jamstack_settings' );
+delete_option( 'atomic_jamstack_logs' );  // Logger stores last 100 log entries here
 
 // 2. Delete all post meta using native WordPress API
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 $jamstack_post_meta_keys = array(
+	// Original keys (keep these)
 	'_jamstack_sync_status',        // Sync status (pending, processing, success, failed)
 	'_jamstack_sync_last',          // Last sync timestamp
 	'_jamstack_file_path',          // GitHub file path for the post
 	'_jamstack_last_commit_url',    // GitHub commit URL
 	'_jamstack_sync_start_time',    // Sync start time for timeout detection
+
+	// Queue Manager meta keys (added to fix incomplete cleanup)
+	'_jamstack_sync_timestamp',     // Queue_Manager::META_TIMESTAMP
+	'_jamstack_retry_count',        // Queue_Manager::META_RETRY_COUNT
+
+	// Dev.to adapter meta keys (added to fix incomplete cleanup)
+	'_atomic_jamstack_publish_devto', // Post meta box checkbox state
+	'_atomic_jamstack_devto_id',      // Dev.to article ID
+	'_atomic_jamstack_devto_url',     // Dev.to article URL
+	'_atomic_jamstack_devto_sync_time', // Dev.to last sync timestamp
 );
 
 // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
