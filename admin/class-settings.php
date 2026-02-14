@@ -89,9 +89,10 @@ class Settings {
 			'ajcBridgeSettings',
 			array(
 				'ajaxurl'            => admin_url( 'admin-ajax.php' ),
-				'bulkSyncNonce'      => wp_create_nonce( 'atomic-jamstack-bulk-sync' ),
-				'syncSingleNonce'    => wp_create_nonce( 'atomic-jamstack-sync-single' ),
-				'statsNonce'         => wp_create_nonce( 'atomic-jamstack-stats' ),
+				'bulkSyncNonce'      => wp_create_nonce( 'ajc-bridge-bulk-sync' ),
+				'syncSingleNonce'    => wp_create_nonce( 'ajc-bridge-sync-single' ),
+				'statsNonce'         => wp_create_nonce( 'ajc-bridge-stats' ),
+				'testConnectionNonce' => wp_create_nonce( 'ajc-bridge-test-connection' ),
 				'textBulkConfirm'    => __( 'Are you sure you want to synchronize all published posts? This may take several minutes.', 'ajc-bridge' ),
 				'textStarting'       => __( 'Starting...', 'ajc-bridge' ),
 				'textSynchronize'    => __( 'Synchronize All Posts', 'ajc-bridge' ),
@@ -100,6 +101,8 @@ class Settings {
 				'textSynced'         => __( 'Synced!', 'ajc-bridge' ),
 				'textSyncNow'        => __( 'Sync Now', 'ajc-bridge' ),
 				'textError'          => __( 'Error', 'ajc-bridge' ),
+				'textTesting'        => __( 'Testing...', 'ajc-bridge' ),
+				'textConnected'      => __( '✓ Connected', 'ajc-bridge' ),
 			)
 		);
 	}
@@ -613,10 +616,10 @@ class Settings {
 			?>
 		</p>
 		<p>
-			<button type="button" id="atomic-jamstack-test-connection" class="button button-secondary">
+			<button type="button" id="ajc-bridge-test-github" class="button button-secondary">
 				<?php esc_html_e( 'Test Connection', 'ajc-bridge' ); ?>
 			</button>
-			<span id="atomic-jamstack-test-result"></span>
+			<span id="ajc-bridge-test-github-result"></span>
 		</p>
 		<?php
 	}
@@ -966,10 +969,10 @@ class Settings {
 			?>
 		</p>
 		<p>
-			<button type="button" id="devto_test_connection" class="button">
+			<button type="button" id="ajc-bridge-test-devto" class="button">
 				<?php esc_html_e( 'Test Connection', 'ajc-bridge' ); ?>
 			</button>
-			<span id="devto_test_result"></span>
+			<span id="ajc-bridge-test-devto-result"></span>
 		</p>
 		<?php
 	}
@@ -1370,7 +1373,7 @@ class Settings {
 	 * @return void
 	 */
 	public static function ajax_test_connection(): void {
-		check_ajax_referer( 'atomic-jamstack-test-connection', 'nonce' );
+		check_ajax_referer( 'ajc-bridge-test-connection', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Insufficient permissions', 'ajc-bridge' ) ) );
@@ -1425,7 +1428,7 @@ class Settings {
 	 * @return void
 	 */
 	public static function ajax_test_devto_connection(): void {
-		check_ajax_referer( 'atomic-jamstack-test-connection', 'nonce' );
+		check_ajax_referer( 'ajc-bridge-test-connection', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Insufficient permissions', 'ajc-bridge' ) ) );

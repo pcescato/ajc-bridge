@@ -177,4 +177,75 @@
 		});
 	});
 	
+	/**
+	 * Test GitHub connection
+	 */
+	$('#ajc-bridge-test-github').on('click', function() {
+		var $button = $(this);
+		var $result = $('#ajc-bridge-test-github-result');
+		
+		$button.prop('disabled', true).text(ajcBridgeSettings.textTesting);
+		$result.html('<span class="spinner is-active" style="float: none; margin: 0;"></span>');
+		
+		$.ajax({
+			url: ajaxurl,
+			type: 'POST',
+			data: {
+				action: 'ajc_bridge_test_connection',
+				nonce: ajcBridgeSettings.testConnectionNonce
+			},
+			success: function(response) {
+				$button.prop('disabled', false).text(ajcBridgeSettings.textConnected);
+				if (response.success) {
+					$result.html('<span style="color: #46b450;">✓ ' + response.data.message + '</span>');
+				} else {
+					$result.html('<span style="color: #dc3232;">✗ ' + response.data.message + '</span>');
+				}
+			},
+			error: function(xhr, status, error) {
+				$button.prop('disabled', false).text('Test Connection');
+				$result.html('<span style="color: #dc3232;">✗ ' + ajcBridgeSettings.textRequestFailed + ': ' + error + '</span>');
+			}
+		});
+	});
+	
+	/**
+	 * Test Dev.to connection
+	 */
+	$('#ajc-bridge-test-devto').on('click', function() {
+		var $button = $(this);
+		var $result = $('#ajc-bridge-test-devto-result');
+		var apiKey = $('input[name="ajc_bridge_settings[devto_api_key]"]').val();
+		
+		if (!apiKey) {
+			$result.html('<span style="color: #dc3232;">✗ Please enter an API key first</span>');
+			return;
+		}
+		
+		$button.prop('disabled', true).text(ajcBridgeSettings.textTesting);
+		$result.html('<span class="spinner is-active" style="float: none; margin: 0;"></span>');
+		
+		$.ajax({
+			url: ajaxurl,
+			type: 'POST',
+			data: {
+				action: 'ajc_bridge_test_devto',
+				nonce: ajcBridgeSettings.testConnectionNonce,
+				api_key: apiKey
+			},
+			success: function(response) {
+				$button.prop('disabled', false).text(ajcBridgeSettings.textConnected);
+				if (response.success) {
+					$result.html('<span style="color: #46b450;">✓ ' + response.data.message + '</span>');
+				} else {
+					$result.html('<span style="color: #dc3232;">✗ ' + response.data.message + '</span>');
+				}
+			},
+			error: function(xhr, status, error) {
+				$button.prop('disabled', false).text('Test Connection');
+				$result.html('<span style="color: #dc3232;">✗ ' + ajcBridgeSettings.textRequestFailed + ': ' + error + '</span>');
+			}
+		});
+	});
+	
 })(jQuery);

@@ -1,6 +1,6 @@
 === AJC Bridge ===
 Contributors: pcescato
-Tags: jamstack, hugo, github, devto, static-site, publishing, headless
+Tags: jamstack, hugo, github, devto, headless
 Requires at least: 6.9
 Tested up to: 6.9
 Requires PHP: 8.1
@@ -8,7 +8,7 @@ Stable tag: 1.2.0
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
-Flexible WordPress publishing with 5 strategies: WordPress-only, WordPress+dev.to syndication, GitHub headless, dev.to headless, or dual GitHub+dev.to publishing.
+Flexible WordPress publishing: WordPress-only, dev.to syndication, GitHub headless, dev.to headless, or dual GitHub+dev.to publishing.
 
 == Description ==
 

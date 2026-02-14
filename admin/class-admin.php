@@ -27,9 +27,8 @@ class Admin {
 	 */
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'add_menu_pages' ) );
-		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_scripts' ) );
 
-		// Initialize settings and columns
+		// Initialize settings and columns (they handle their own asset enqueuing)
 		Settings::init();
 		Columns::init();
 	}
@@ -79,58 +78,6 @@ class Admin {
 			'publish_posts',
 			'jamstack-sync-history',
 			array( Settings::class, 'render_history_page' )
-		);
-	}
-
-	/**
-	 * Enqueue admin scripts and styles
-	 *
-	 * @param string $hook Current admin page hook.
-	 *
-	 * @return void
-	 */
-	public static function enqueue_scripts( string $hook ): void {
-		// Load on all Jamstack Sync pages
-		$allowed_pages = array(
-			'toplevel_page_jamstack-sync',         // Main menu/Settings
-			'jamstack-sync_page_jamstack-sync-bulk', // Bulk Operations submenu
-			'jamstack-sync_page_jamstack-sync-history', // Sync History submenu
-		);
-
-		if ( ! in_array( $hook, $allowed_pages, true ) ) {
-			return;
-		}
-
-		// Enqueue admin styles
-		wp_enqueue_style(
-			'atomic-jamstack-admin',
-			AJC_BRIDGE_URL . 'assets/css/admin.css',
-			array(),
-			AJC_BRIDGE_VERSION
-		);
-
-		// Enqueue admin scripts
-		wp_enqueue_script(
-			'atomic-jamstack-admin',
-			AJC_BRIDGE_URL . 'assets/js/admin.js',
-			array( 'jquery' ),
-			AJC_BRIDGE_VERSION,
-			true
-		);
-
-		// Localize script for AJAX
-		wp_localize_script(
-			'atomic-jamstack-admin',
-			'atomicJamstackAdmin',
-			array(
-				'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
-				'testConnectionNonce' => wp_create_nonce( 'atomic-jamstack-test-connection' ),
-				'strings'            => array(
-					'testing'  => __( 'Testing connection...', 'ajc-bridge' ),
-					'success'  => __( 'Connection successful!', 'ajc-bridge' ),
-					'error'    => __( 'Connection failed:', 'ajc-bridge' ),
-				),
-			)
 		);
 	}
 }
