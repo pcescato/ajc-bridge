@@ -1,0 +1,9 @@
+.git
+.github
+.gitignore
+.distignore
+composer.json
+composer.lock
+tests/
+docs/
+vendor/bin/

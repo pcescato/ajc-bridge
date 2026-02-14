@@ -1,0 +1,77 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+      
+      - name: Install Composer dependencies
+        run: composer install --no-dev --prefer-dist --optimize-autoloader
+      
+      - name: Create plugin directory
+        run: mkdir -p ajc-bridge
+      
+      - name: Copy plugin files
+        run: |
+          rsync -av --progress . ajc-bridge/ \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=.gitignore \
+            --exclude=.gitattributes \
+            --exclude=.distignore \
+            --exclude=composer.json \
+            --exclude=composer.lock \
+            --exclude=node_modules \
+            --exclude=tests \
+            --exclude=docs \
+            --exclude=AGENTS.md \
+            --exclude=ajc-bridge
+      
+      - name: Create release archive
+        run: zip -r ajc-bridge.zip ajc-bridge/
+      
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: AJC Bridge ${{ steps.get_version.outputs.VERSION }}
+          files: ajc-bridge.zip
+          body: |
+            ## AJC Bridge ${{ steps.get_version.outputs.VERSION }}
+            
+            WordPress plugin for syncing content to Jamstack platforms (GitHub/Hugo, Dev.to).
+            
+            ### Installation
+            1. Download `ajc-bridge.zip`
+            2. Upload to WordPress via Plugins → Add New → Upload Plugin
+            3. Activate and configure in Settings → AJC Bridge
+            
+            ### Requirements
+            - WordPress 6.9+
+            - PHP 8.1+
+            - GD or Imagick extension (for image processing)
+          draft: false
+          prerelease: false
