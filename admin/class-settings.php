@@ -185,7 +185,7 @@ class Settings {
 
 			add_settings_field(
 				'publishing_strategy',
-				__( 'Publishing Strategy', 'ajc-bridge' ),
+				__( 'Publishing Mode', 'ajc-bridge' ),
 				array( __CLASS__, 'render_publishing_strategy_field' ),
 				self::PAGE_SLUG,
 				'ajc_bridge_posttypes_section'
@@ -207,10 +207,10 @@ class Settings {
 				'ajc_bridge_posttypes_section'
 			);
 
-			// Hugo Settings Section
+			// Static Site Publishing Section
 			add_settings_section(
 				'ajc_bridge_hugo_section',
-				__( 'Hugo Configuration', 'ajc-bridge' ),
+				__( 'Static Site Publishing', 'ajc-bridge' ),
 				array( __CLASS__, 'render_hugo_section' ),
 				self::PAGE_SLUG
 			);
@@ -250,10 +250,10 @@ class Settings {
 
 		// GITHUB CREDENTIALS TAB SECTIONS
 		if ( 'credentials' === $current_tab ) {
-			// GitHub Settings Section
+			// GitHub Publishing Section
 			add_settings_section(
 				'ajc_bridge_github_section',
-				__( 'GitHub Configuration', 'ajc-bridge' ),
+				__( 'GitHub Publishing', 'ajc-bridge' ),
 				array( __CLASS__, 'render_github_section' ),
 				self::PAGE_SLUG
 			);
@@ -282,10 +282,10 @@ class Settings {
 				'ajc_bridge_github_section'
 			);
 
-			// Dev.to Settings Section
+			// Dev.to Distribution Section
 			add_settings_section(
 				'ajc_bridge_devto_section',
-				__( 'Dev.to Publishing', 'ajc-bridge' ),
+				__( 'Dev.to Distribution', 'ajc-bridge' ),
 				array( __CLASS__, 'render_devto_section' ),
 				self::PAGE_SLUG
 			);
@@ -797,23 +797,23 @@ class Settings {
 
 		$strategies = array(
 			'wordpress_only'     => array(
-				'label'       => __( 'WordPress Only', 'ajc-bridge' ),
+				'label'       => __( 'WordPress only (no external distribution)', 'ajc-bridge' ),
 				'description' => __( 'No external sync. Plugin settings available but sync disabled. WordPress remains your public site.', 'ajc-bridge' ),
 			),
 			'wordpress_devto'    => array(
-				'label'       => __( 'WordPress + dev.to Syndication', 'ajc-bridge' ),
+				'label'       => __( 'WordPress + Dev.to distribution', 'ajc-bridge' ),
 				'description' => __( 'WordPress remains your public site (canonical). Optionally syndicate posts to dev.to with canonical_url pointing to WordPress. Check "Publish to dev.to" per post.', 'ajc-bridge' ),
 			),
 			'github_only'        => array(
-				'label'       => __( 'GitHub Only (Headless)', 'ajc-bridge' ),
+				'label'       => __( 'GitHub only (WordPress as source)', 'ajc-bridge' ),
 				'description' => __( 'WordPress is headless (admin-only). All published posts sync to Hugo/Jekyll on GitHub Pages. WordPress frontend redirects to your static site.', 'ajc-bridge' ),
 			),
 			'devto_only'         => array(
-				'label'       => __( 'Dev.to Only (Headless)', 'ajc-bridge' ),
+				'label'       => __( 'Dev.to only (WordPress as source)', 'ajc-bridge' ),
 				'description' => __( 'WordPress is headless. All published posts sync to dev.to. WordPress frontend redirects to dev.to.', 'ajc-bridge' ),
 			),
 			'dual_github_devto'  => array(
-				'label'       => __( 'Dual Publishing (GitHub + dev.to)', 'ajc-bridge' ),
+				'label'       => __( 'Dual distribution (GitHub + Dev.to)', 'ajc-bridge' ),
 				'description' => __( 'WordPress is headless. Posts sync to GitHub (canonical). Optionally syndicate to dev.to with canonical_url. Check "Publish to dev.to" per post.', 'ajc-bridge' ),
 			),
 		);
@@ -1003,7 +1003,7 @@ class Settings {
 		$settings_tab = isset( $_GET['settings_tab'] ) ? sanitize_key( $_GET['settings_tab'] ) : 'general';
 		?>
 		<div class="wrap atomic-jamstack-settings-wrap">
-			<h1><?php esc_html_e( 'Jamstack Sync Settings', 'ajc-bridge' ); ?></h1>
+			<h1><?php esc_html_e( 'AJC Bridge Settings', 'ajc-bridge' ); ?></h1>
 			
 			<!-- Settings Sub-Tab Navigation -->
 			<div class="atomic-jamstack-subtabs">
