@@ -40,23 +40,24 @@ class Admin {
 	 */
 	public static function add_menu_pages(): void {
 		// Main top-level menu - Visible to authors and above
+		// Uses router to show settings (admin) or history (authors)
 		add_menu_page(
 			__( 'AJC Bridge', 'ajc-bridge' ),
 			__( 'AJC Bridge', 'ajc-bridge' ),
 			'publish_posts',
 			'ajc-bridge',
-			array( Settings::class, 'render_settings_page' ),
+			array( __CLASS__, 'render_main_page_router' ),
 			'dashicons-cloud-upload',
 			26
 		);
 
-		// Submenu 1: Settings (default) - Admin only
+		// Submenu 1: Settings - Admin only
 		add_submenu_page(
 			'ajc-bridge',
 			__( 'Settings', 'ajc-bridge' ),
 			__( 'Settings', 'ajc-bridge' ),
 			'manage_options',
-			'ajc-bridge',
+			'ajc-bridge-settings',
 			array( Settings::class, 'render_settings_page' )
 		);
 
@@ -79,5 +80,20 @@ class Admin {
 			'ajc-bridge-history',
 			array( Settings::class, 'render_history_page' )
 		);
+	}
+
+	/**
+	 * Router for main menu page - shows settings or history based on capability
+	 *
+	 * @return void
+	 */
+	public static function render_main_page_router(): void {
+		if ( current_user_can( 'manage_options' ) ) {
+			// Administrators see settings
+			Settings::render_settings_page();
+		} else {
+			// Authors see their sync history
+			Settings::render_history_page();
+		}
 	}
 }

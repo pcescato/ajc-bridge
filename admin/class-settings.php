@@ -44,7 +44,6 @@ class Settings {
 	 * @return void
 	 */
 	public static function init(): void {
-		add_action( 'admin_init', array( __CLASS__, 'redirect_non_admin_users' ) );
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
 		add_action( 'admin_init', array( __CLASS__, 'handle_settings_redirect' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
@@ -53,28 +52,6 @@ class Settings {
 		add_action( 'wp_ajax_ajc_bridge_bulk_sync', array( __CLASS__, 'ajax_bulk_sync' ) );
 		add_action( 'wp_ajax_ajc_bridge_get_stats', array( __CLASS__, 'ajax_get_stats' ) );
 		add_action( 'wp_ajax_ajc_bridge_sync_single', array( __CLASS__, 'ajax_sync_single' ) );
-	}
-
-	/**
-	 * Redirect non-admin users from settings/bulk pages
-	 *
-	 * @return void
-	 */
-	public static function redirect_non_admin_users(): void {
-		// Check if we're on one of our admin pages
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
-
-		// Only redirect on main settings page (not bulk or history)
-		if ( 'ajc-bridge' !== $page ) {
-			return;
-		}
-
-		// If user is not admin but has publish_posts, redirect to history
-		if ( ! current_user_can( 'manage_options' ) && current_user_can( 'publish_posts' ) ) {
-			wp_safe_redirect( admin_url( 'admin.php?page=ajc-bridge-history' ) );
-			exit;
-		}
 	}
 
 	/**
@@ -87,6 +64,7 @@ class Settings {
 		// Load on all our plugin pages
 		$allowed_hooks = array(
 			'toplevel_page_ajc-bridge',
+			'ajc-bridge_page_ajc-bridge-settings',
 			'ajc-bridge_page_ajc-bridge-bulk',
 			'ajc-bridge_page_ajc-bridge-history',
 		);
@@ -1030,11 +1008,11 @@ class Settings {
 			<!-- Settings Sub-Tab Navigation -->
 			<div class="atomic-jamstack-subtabs">
 				<h2 class="nav-tab-wrapper">
-					<a href="?page=ajc-bridge&settings_tab=general" 
+					<a href="?page=ajc-bridge-settings&settings_tab=general" 
 					   class="nav-tab <?php echo 'general' === $settings_tab ? 'nav-tab-active' : ''; ?>">
 						<?php esc_html_e( 'General', 'ajc-bridge' ); ?>
 					</a>
-					<a href="?page=ajc-bridge&settings_tab=credentials" 
+					<a href="?page=ajc-bridge-settings&settings_tab=credentials" 
 					   class="nav-tab <?php echo 'credentials' === $settings_tab ? 'nav-tab-active' : ''; ?>">
 						<?php esc_html_e( 'Credentials', 'ajc-bridge' ); ?>
 					</a>
