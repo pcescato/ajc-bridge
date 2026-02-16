@@ -209,10 +209,58 @@ class Settings {
 
 			// Static Site Publishing Section
 			add_settings_section(
-				'ajc_bridge_hugo_section',
+				'ajc_bridge_ssg_section',
 				__( 'Static Site Publishing', 'ajc-bridge' ),
-				array( __CLASS__, 'render_hugo_section' ),
+				array( __CLASS__, 'render_ssg_section' ),
 				self::PAGE_SLUG
+			);
+
+			add_settings_field(
+				'ssg_type',
+				__( 'Static Site Generator', 'ajc-bridge' ),
+				array( __CLASS__, 'render_ssg_type_field' ),
+				self::PAGE_SLUG,
+				'ajc_bridge_ssg_section'
+			);
+
+			add_settings_field(
+				'hugo_content_dir',
+				__( 'Hugo Content Directory', 'ajc-bridge' ),
+				array( __CLASS__, 'render_hugo_content_dir_field' ),
+				self::PAGE_SLUG,
+				'ajc_bridge_ssg_section'
+			);
+
+			add_settings_field(
+				'hugo_images_dir',
+				__( 'Hugo Images Directory', 'ajc-bridge' ),
+				array( __CLASS__, 'render_hugo_images_dir_field' ),
+				self::PAGE_SLUG,
+				'ajc_bridge_ssg_section'
+			);
+
+			add_settings_field(
+				'astro_content_dir',
+				__( 'Astro Content Directory', 'ajc-bridge' ),
+				array( __CLASS__, 'render_astro_content_dir_field' ),
+				self::PAGE_SLUG,
+				'ajc_bridge_ssg_section'
+			);
+
+			add_settings_field(
+				'astro_images_dir',
+				__( 'Astro Images Directory', 'ajc-bridge' ),
+				array( __CLASS__, 'render_astro_images_dir_field' ),
+				self::PAGE_SLUG,
+				'ajc_bridge_ssg_section'
+			);
+
+			add_settings_field(
+				'astro_file_extension',
+				__( 'Astro File Extension', 'ajc-bridge' ),
+				array( __CLASS__, 'render_astro_file_extension_field' ),
+				self::PAGE_SLUG,
+				'ajc_bridge_ssg_section'
 			);
 
 			add_settings_field(
@@ -220,7 +268,7 @@ class Settings {
 				__( 'Custom Front Matter Template', 'ajc-bridge' ),
 				array( __CLASS__, 'render_front_matter_template_field' ),
 				self::PAGE_SLUG,
-				'ajc_bridge_hugo_section'
+				'ajc_bridge_ssg_section'
 			);
 
 			// Debug Settings Section
@@ -454,6 +502,36 @@ class Settings {
 			if ( ! empty( $url ) && wp_parse_url( $url, PHP_URL_SCHEME ) ) {
 				$sanitized['devto_site_url'] = rtrim( $url, '/' );
 			}
+		}
+
+		// Sanitize SSG type
+		if ( isset( $input['ssg_type'] ) ) {
+			$allowed_ssg_types = array( 'hugo', 'astro', 'jekyll', 'eleventy' );
+			$sanitized['ssg_type'] = in_array( $input['ssg_type'], $allowed_ssg_types, true ) 
+				? $input['ssg_type'] 
+				: 'hugo';
+		}
+
+		// Sanitize Hugo settings
+		if ( isset( $input['hugo_content_dir'] ) ) {
+			$sanitized['hugo_content_dir'] = sanitize_text_field( $input['hugo_content_dir'] );
+		}
+
+		if ( isset( $input['hugo_images_dir'] ) ) {
+			$sanitized['hugo_images_dir'] = sanitize_text_field( $input['hugo_images_dir'] );
+		}
+
+		// Sanitize Astro settings
+		if ( isset( $input['astro_content_dir'] ) ) {
+			$sanitized['astro_content_dir'] = sanitize_text_field( $input['astro_content_dir'] );
+		}
+
+		if ( isset( $input['astro_images_dir'] ) ) {
+			$sanitized['astro_images_dir'] = sanitize_text_field( $input['astro_images_dir'] );
+		}
+
+		if ( isset( $input['astro_file_extension'] ) ) {
+			$sanitized['astro_file_extension'] = sanitize_text_field( $input['astro_file_extension'] );
 		}
 
 		// Sanitize Front Matter template
@@ -888,6 +966,157 @@ class Settings {
 	}
 
 	/**
+	 * Render SSG section description
+	 *
+	 * @return void
+	 */
+	public static function render_ssg_section(): void {
+		echo '<p>';
+		esc_html_e( 'Choose your static site generator and configure how WordPress content is converted.', 'ajc-bridge' );
+		echo '</p>';
+	}
+
+	/**
+	 * Render SSG type dropdown field
+	 *
+	 * @return void
+	 */
+	public static function render_ssg_type_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$value = $settings['ssg_type'] ?? 'hugo';
+		?>
+		<select 
+			id="<?php echo esc_attr( self::OPTION_NAME ); ?>[ssg_type]" 
+			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[ssg_type]"
+			class="regular-text"
+		>
+			<option value="hugo" <?php selected( $value, 'hugo' ); ?>>Hugo</option>
+			<option value="astro" <?php selected( $value, 'astro' ); ?>>Astro</option>
+			<option value="jekyll" <?php selected( $value, 'jekyll' ); ?> disabled><?php esc_html_e( 'Jekyll (Coming Soon)', 'ajc-bridge' ); ?></option>
+			<option value="eleventy" <?php selected( $value, 'eleventy' ); ?> disabled><?php esc_html_e( 'Eleventy (Coming Soon)', 'ajc-bridge' ); ?></option>
+		</select>
+		<p class="description">
+			<?php esc_html_e( 'Select which static site generator you are using. Each SSG has specific content structure requirements.', 'ajc-bridge' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render Hugo content directory field
+	 *
+	 * @return void
+	 */
+	public static function render_hugo_content_dir_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$value = $settings['hugo_content_dir'] ?? 'content/posts';
+		?>
+		<input 
+			type="text" 
+			id="<?php echo esc_attr( self::OPTION_NAME ); ?>[hugo_content_dir]" 
+			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[hugo_content_dir]" 
+			value="<?php echo esc_attr( $value ); ?>" 
+			class="regular-text ssg-hugo-field"
+			placeholder="content/posts"
+		/>
+		<p class="description">
+			<?php esc_html_e( 'Hugo content directory path (default: content/posts)', 'ajc-bridge' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render Hugo images directory field
+	 *
+	 * @return void
+	 */
+	public static function render_hugo_images_dir_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$value = $settings['hugo_images_dir'] ?? 'static/images';
+		?>
+		<input 
+			type="text" 
+			id="<?php echo esc_attr( self::OPTION_NAME ); ?>[hugo_images_dir]" 
+			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[hugo_images_dir]" 
+			value="<?php echo esc_attr( $value ); ?>" 
+			class="regular-text ssg-hugo-field"
+			placeholder="static/images"
+		/>
+		<p class="description">
+			<?php esc_html_e( 'Hugo images directory path (default: static/images)', 'ajc-bridge' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render Astro content directory field
+	 *
+	 * @return void
+	 */
+	public static function render_astro_content_dir_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$value = $settings['astro_content_dir'] ?? 'src/content/posts';
+		?>
+		<input 
+			type="text" 
+			id="<?php echo esc_attr( self::OPTION_NAME ); ?>[astro_content_dir]" 
+			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[astro_content_dir]" 
+			value="<?php echo esc_attr( $value ); ?>" 
+			class="regular-text ssg-astro-field"
+			placeholder="src/content/posts"
+		/>
+		<p class="description">
+			<?php esc_html_e( 'Astro content directory path (default: src/content/posts)', 'ajc-bridge' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render Astro images directory field
+	 *
+	 * @return void
+	 */
+	public static function render_astro_images_dir_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$value = $settings['astro_images_dir'] ?? 'public/image';
+		?>
+		<input 
+			type="text" 
+			id="<?php echo esc_attr( self::OPTION_NAME ); ?>[astro_images_dir]" 
+			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[astro_images_dir]" 
+			value="<?php echo esc_attr( $value ); ?>" 
+			class="regular-text ssg-astro-field"
+			placeholder="public/image"
+		/>
+		<p class="description">
+			<?php esc_html_e( 'Astro images directory path (default: public/image)', 'ajc-bridge' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render Astro file extension field
+	 *
+	 * @return void
+	 */
+	public static function render_astro_file_extension_field(): void {
+		$settings = get_option( self::OPTION_NAME, array() );
+		$value = $settings['astro_file_extension'] ?? '.mdx';
+		?>
+		<input 
+			type="text" 
+			id="<?php echo esc_attr( self::OPTION_NAME ); ?>[astro_file_extension]" 
+			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[astro_file_extension]" 
+			value="<?php echo esc_attr( $value ); ?>" 
+			class="regular-text ssg-astro-field"
+			placeholder=".mdx"
+		/>
+		<p class="description">
+			<?php esc_html_e( 'Astro file extension (default: .mdx)', 'ajc-bridge' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
 	 * Render Hugo section description
 	 *
 	 * @return void
@@ -915,10 +1144,10 @@ class Settings {
 			id="<?php echo esc_attr( self::OPTION_NAME ); ?>[hugo_front_matter_template]"
 			name="<?php echo esc_attr( self::OPTION_NAME ); ?>[hugo_front_matter_template]" 
 			rows="15" 
-			class="large-text code"
+			class="large-text code ssg-hugo-field"
 		><?php echo esc_textarea( $value ); ?></textarea>
 		<p class="description">
-			<?php esc_html_e( 'Define your raw Front Matter here. You must include your own delimiters (e.g., --- for YAML or +++ for TOML).', 'ajc-bridge' ); ?>
+			<?php esc_html_e( 'Define your raw Front Matter here. You must include your own delimiters (e.g., --- for YAML or +++ for TOML). This template is used only for Hugo.', 'ajc-bridge' ); ?>
 		</p>
 		<p class="description">
 			<?php esc_html_e( 'Available placeholders:', 'ajc-bridge' ); ?>

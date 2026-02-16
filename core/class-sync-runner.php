@@ -430,11 +430,23 @@ class Sync_Runner {
 			$image_files = $images_result['files'] ?? array();
 			$image_mapping = $images_result['mappings'] ?? array();
 
-			// Load adapter
+			// Load adapter based on settings
+			$ssg_type = $settings['ssg_type'] ?? 'hugo';
+			
 			require_once AJC_BRIDGE_PATH . 'adapters/interface-adapter.php';
-			require_once AJC_BRIDGE_PATH . 'adapters/class-hugo-adapter.php';
-
-			$adapter = new \AjcBridge\Adapters\Hugo_Adapter();
+			
+			switch ( $ssg_type ) {
+				case 'astro':
+					require_once AJC_BRIDGE_PATH . 'adapters/class-astro-adapter.php';
+					$adapter = new \AjcBridge\Adapters\Astro_Adapter();
+					break;
+				
+				case 'hugo':
+				default:
+					require_once AJC_BRIDGE_PATH . 'adapters/class-hugo-adapter.php';
+					$adapter = new \AjcBridge\Adapters\Hugo_Adapter();
+					break;
+			}
 
 			// Convert to Markdown with image path replacements and featured image
 			$markdown_content = $adapter->convert( $post, $image_mapping, $featured_image_path );
@@ -718,10 +730,25 @@ class Sync_Runner {
 				);
 			} else {
 				// Generate file path using adapter
+				$ssg_type = $settings['ssg_type'] ?? 'hugo';
+				
 				require_once AJC_BRIDGE_PATH . 'adapters/interface-adapter.php';
-				require_once AJC_BRIDGE_PATH . 'adapters/class-hugo-adapter.php';
-
-				$adapter   = new \AjcBridge\Adapters\Hugo_Adapter();
+				
+				switch ( $ssg_type ) {
+					case 'astro':
+						require_once AJC_BRIDGE_PATH . 'adapters/class-astro-adapter.php';
+						$adapter = new \AjcBridge\Adapters\Astro_Adapter();
+						$adapter_name = 'Astro_Adapter';
+						break;
+					
+					case 'hugo':
+					default:
+						require_once AJC_BRIDGE_PATH . 'adapters/class-hugo-adapter.php';
+						$adapter = new \AjcBridge\Adapters\Hugo_Adapter();
+						$adapter_name = 'Hugo_Adapter';
+						break;
+				}
+				
 				$file_path = $adapter->get_file_path( $post );
 
 				// Cache the file path for future use
@@ -746,7 +773,7 @@ class Sync_Runner {
 			array(
 				'post_id'   => $post_id,
 				'file_path' => $file_path,
-				'method'    => $post ? 'Hugo_Adapter' : 'cached',
+				'method'    => $post ? get_option( 'ajc_bridge_settings', array() )['ssg_type'] ?? 'hugo' : 'cached',
 			)
 		);
 

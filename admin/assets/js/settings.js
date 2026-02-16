@@ -1,14 +1,52 @@
 /**
  * AJC Bridge - Settings Page JavaScript
  * 
- * Handles bulk sync, stats refresh, and sync history functionality
- * on the plugin settings page.
+ * Handles bulk sync, stats refresh, sync history functionality,
+ * and SSG type conditional field visibility.
  * 
  * @package AjcBridge
  */
 
 (function($) {
 	'use strict';
+	
+	/**
+	 * Initialize SSG type field visibility
+	 */
+	function initSSGTypeToggle() {
+		const ssgTypeSelect = $('select[name="ajc_bridge_settings[ssg_type]"]');
+		
+		if (ssgTypeSelect.length === 0) {
+			return;
+		}
+		
+		function updateSSGFieldsVisibility() {
+			const selectedSSG = ssgTypeSelect.val();
+			
+			// Hide all SSG-specific fields
+			$('.ssg-hugo-field').closest('tr').hide();
+			$('.ssg-astro-field').closest('tr').hide();
+			$('.ssg-jekyll-field').closest('tr').hide();
+			$('.ssg-eleventy-field').closest('tr').hide();
+			
+			// Show fields for selected SSG
+			if (selectedSSG === 'hugo') {
+				$('.ssg-hugo-field').closest('tr').show();
+			} else if (selectedSSG === 'astro') {
+				$('.ssg-astro-field').closest('tr').show();
+			} else if (selectedSSG === 'jekyll') {
+				$('.ssg-jekyll-field').closest('tr').show();
+			} else if (selectedSSG === 'eleventy') {
+				$('.ssg-eleventy-field').closest('tr').show();
+			}
+		}
+		
+		// Initialize visibility on page load
+		updateSSGFieldsVisibility();
+		
+		// Update on dropdown change
+		ssgTypeSelect.on('change', updateSSGFieldsVisibility);
+	}
 	
 	/**
 	 * Load and display sync statistics
@@ -88,6 +126,9 @@
 	 * Initialize when document is ready
 	 */
 	$(document).ready(function() {
+		// Initialize SSG type field visibility
+		initSSGTypeToggle();
+		
 		// Load initial stats
 		loadStats();
 		

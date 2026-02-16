@@ -19,3 +19,27 @@
 	0% { transform: rotate(0deg); }
 	100% { transform: rotate(360deg); }
 }
+
+/* SSG Type Fields - Show/Hide based on selection */
+.ssg-hugo-field,
+.ssg-astro-field,
+.ssg-jekyll-field,
+.ssg-eleventy-field {
+/* JavaScript will control visibility */
+}
+
+/* Highlight active SSG section */
+tr:has(.ssg-hugo-field) {
+background-color: #f9f9f9;
+}
+
+tr:has(.ssg-astro-field) {
+background-color: #f9f9f9;
+}
+
+/* SSG dropdown styling */
+select[name="ajc_bridge_settings[ssg_type]"] {
+font-weight: 600;
+background-color: #fff;
+border: 2px solid #2271b1;
+}
