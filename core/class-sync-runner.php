@@ -421,16 +421,7 @@ class Sync_Runner {
 			require_once AJC_BRIDGE_PATH . 'core/class-media-processor.php';
 			$media_processor = new Media_Processor();
 
-			// Collect featured image data
-			$featured_data = $media_processor->get_featured_image_data( $post_id );
-			$featured_image_path = ! empty( $featured_data ) ? sprintf( '/images/%d/featured.webp', $post_id ) : '';
-
-			// Collect content images data
-			$images_result = $media_processor->get_post_images_data( $post_id, $post->post_content );
-			$image_files = $images_result['files'] ?? array();
-			$image_mapping = $images_result['mappings'] ?? array();
-
-			// Load adapter based on settings
+			// Load adapter based on settings (must be done before media processing)
 			$ssg_type = $settings['ssg_type'] ?? 'hugo';
 			
 			require_once AJC_BRIDGE_PATH . 'adapters/interface-adapter.php';
@@ -447,6 +438,21 @@ class Sync_Runner {
 					$adapter = new \AjcBridge\Adapters\Hugo_Adapter();
 					break;
 			}
+
+			// Collect featured image data (using adapter for paths)
+			$featured_data = $media_processor->get_featured_image_data( $post_id, $adapter );
+
+			// Get featured image path from collected data (first file if exists)
+			$featured_image_path = '';
+			if ( ! empty( $featured_data ) ) {
+				// Use first key as the featured image path
+				$featured_image_path = array_key_first( $featured_data );
+			}
+
+			// Collect content images data (using adapter for paths)
+			$images_result = $media_processor->get_post_images_data( $post_id, $post->post_content, $adapter );
+			$image_files = $images_result['files'] ?? array();
+			$image_mapping = $images_result['mappings'] ?? array();
 
 			// Convert to Markdown with image path replacements and featured image
 			$markdown_content = $adapter->convert( $post, $image_mapping, $featured_image_path );
@@ -689,6 +695,27 @@ class Sync_Runner {
 	public static function delete( int $post_id ): array|\WP_Error {
 		Logger::info( 'Deletion runner started', array( 'post_id' => $post_id ) );
 
+		// Load settings
+		$settings = get_option( 'ajc_bridge_settings', array() );
+
+		// Load adapter based on settings (needed for paths)
+		$ssg_type = $settings['ssg_type'] ?? 'hugo';
+		
+		require_once AJC_BRIDGE_PATH . 'adapters/interface-adapter.php';
+		
+		switch ( $ssg_type ) {
+			case 'astro':
+				require_once AJC_BRIDGE_PATH . 'adapters/class-astro-adapter.php';
+				$adapter = new \AjcBridge\Adapters\Astro_Adapter();
+				break;
+			
+			case 'hugo':
+			default:
+				require_once AJC_BRIDGE_PATH . 'adapters/class-hugo-adapter.php';
+				$adapter = new \AjcBridge\Adapters\Hugo_Adapter();
+				break;
+		}
+
 		// Get post data (may be trashed or already deleted)
 		$post = get_post( $post_id );
 
@@ -730,25 +757,6 @@ class Sync_Runner {
 				);
 			} else {
 				// Generate file path using adapter
-				$ssg_type = $settings['ssg_type'] ?? 'hugo';
-				
-				require_once AJC_BRIDGE_PATH . 'adapters/interface-adapter.php';
-				
-				switch ( $ssg_type ) {
-					case 'astro':
-						require_once AJC_BRIDGE_PATH . 'adapters/class-astro-adapter.php';
-						$adapter = new \AjcBridge\Adapters\Astro_Adapter();
-						$adapter_name = 'Astro_Adapter';
-						break;
-					
-					case 'hugo':
-					default:
-						require_once AJC_BRIDGE_PATH . 'adapters/class-hugo-adapter.php';
-						$adapter = new \AjcBridge\Adapters\Hugo_Adapter();
-						$adapter_name = 'Hugo_Adapter';
-						break;
-				}
-				
 				$file_path = $adapter->get_file_path( $post );
 
 				// Cache the file path for future use
@@ -804,8 +812,8 @@ class Sync_Runner {
 			)
 		);
 
-		// Delete images directory
-		$images_dir = "static/images/{$post_id}";
+		// Delete images directory using adapter
+		$images_dir = $adapter->get_images_dir( $post_id );
 		Logger::info( 'Checking for images to delete', array( 'dir' => $images_dir ) );
 
 		$image_files = $git_api->list_directory( $images_dir );

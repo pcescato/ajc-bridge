@@ -148,10 +148,9 @@ class Astro_Adapter implements Adapter_Interface {
 		}
 
 		// Image (optional - only if featured image exists)
-		// Astro uses flat structure: /image/filename.ext (no post ID folders)
+		// Astro preserves original filenames: /image/original-name.ext (no post ID folders)
 		if ( ! empty( $featured_image_path ) ) {
-			// Extract just the filename from the processed path
-			// Featured images are named like: featured.avif, featured.webp
+			// Extract filename from the processed path (e.g., "public/image/hero-image.avif" -> "hero-image.avif")
 			$filename = basename( $featured_image_path );
 			$front_matter['image'] = '/image/' . $filename;
 		} elseif ( $featured_image = $this->get_featured_image( $post->ID ) ) {
@@ -570,4 +569,19 @@ class Astro_Adapter implements Adapter_Interface {
 
 		return $value;
 	}
+}
+
+/**
+ * Get featured image filename for Astro
+ *
+ * Astro preserves original filename: {original}.{extension}
+ *
+ * @param string $original_basename Original filename without extension.
+ * @param string $extension         New file extension (webp, avif, etc).
+ *
+ * @return string Preserved filename "{original}.{extension}".
+ */
+public function get_featured_image_name( string $original_basename, string $extension ): string {
+return $original_basename . '.' . $extension;
+}
 }

@@ -27,11 +27,13 @@ interface Adapter_Interface {
 	 * Transforms post content, metadata, and structure into
 	 * Markdown with appropriate front matter for the target SSG.
 	 *
-	 * @param \WP_Post $post WordPress post object.
+	 * @param \WP_Post $post                WordPress post object.
+	 * @param array    $image_mapping       Optional. Array mapping original URLs to new paths.
+	 * @param string   $featured_image_path Optional. Processed featured image path.
 	 *
 	 * @return string Complete Markdown content with front matter.
 	 */
-	public function convert( \WP_Post $post ): string;
+	public function convert( \WP_Post $post, array $image_mapping = array(), string $featured_image_path = '' ): string;
 
 	/**
 	 * Get repository file path for post
@@ -51,9 +53,24 @@ interface Adapter_Interface {
 	 * Extracts and formats post metadata according to SSG requirements.
 	 * Returns associative array ready for YAML/TOML serialization.
 	 *
-	 * @param \WP_Post $post WordPress post object.
+	 * @param \WP_Post $post                 WordPress post object.
+	 * @param string   $featured_image_path  Optional. Processed featured image path.
 	 *
 	 * @return array Associative array of front matter fields.
 	 */
-	public function get_front_matter( \WP_Post $post ): array;
+	public function get_front_matter( \WP_Post $post, string $featured_image_path = '' ): array;
+
+	/**
+	 * Get featured image filename for this SSG
+	 *
+	 * Different SSGs have different naming conventions:
+	 * - Hugo uses fixed "featured.{ext}"
+	 * - Astro preserves original filename
+	 *
+	 * @param string $original_basename Original filename without extension.
+	 * @param string $extension         New file extension (webp, avif, etc).
+	 *
+	 * @return string Filename to use (e.g., "featured.webp" or "my-image.webp").
+	 */
+	public function get_featured_image_name( string $original_basename, string $extension ): string;
 }

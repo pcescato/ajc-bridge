@@ -2,6 +2,8 @@
 /**
  * Media Processor Class
  *
+ * All paths must come from the active adapter. Never hardcode SSG paths.
+ *
  * @package AtomicJamstack
  */
 
@@ -20,10 +22,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Process and optimize images for Hugo static site
+ * Process and optimize images for static site
  *
  * Downloads images from WordPress media library, generates optimized
  * WebP and AVIF versions, and uploads to GitHub repository.
+ * 
+ * Paths are determined by the active SSG adapter.
  */
 class Media_Processor {
 
@@ -359,11 +363,12 @@ class Media_Processor {
 	 * Generates WebP and AVIF versions but returns data instead of uploading.
 	 * For use with atomic commits.
 	 *
-	 * @param int $post_id Post ID.
+	 * @param int    $post_id Post ID.
+	 * @param object $adapter SSG adapter instance for path generation.
 	 *
 	 * @return array Associative array of paths => binary content, or empty if no featured image.
 	 */
-	public function get_featured_image_data( int $post_id ): array {
+	public function get_featured_image_data( int $post_id, $adapter ): array {
 		// Check if post has featured image
 		$thumbnail_id = get_post_thumbnail_id( $post_id );
 
@@ -430,13 +435,21 @@ class Media_Processor {
 		// Generate AVIF version
 		$avif_path = $this->generate_featured_avif( $local_path, $post_id );
 
+		// Get original filename (without extension)
+		$original_basename = pathinfo( $local_path, PATHINFO_FILENAME );
+
+		// Get images directory from adapter (e.g., "public/image" or "static/images/{post_id}")
+		$images_dir = $adapter->get_images_dir( $post_id );
+
 		// Collect file data
 		$files = array();
 
 		// Read WebP content
 		$webp_content = file_get_contents( $webp_path );
 		if ( false !== $webp_content ) {
-			$github_path = sprintf( 'static/images/%d/featured.webp', $post_id );
+			// Build filename using adapter convention (Hugo: "featured.webp", Astro: "{original}.webp")
+			$webp_filename = $adapter->get_featured_image_name( $original_basename, 'webp' );
+			$github_path   = $images_dir . '/' . $webp_filename;
 			$files[ $github_path ] = $webp_content;
 
 			Logger::info(
@@ -453,7 +466,9 @@ class Media_Processor {
 		if ( ! is_wp_error( $avif_path ) ) {
 			$avif_content = file_get_contents( $avif_path );
 			if ( false !== $avif_content ) {
-				$github_path = sprintf( 'static/images/%d/featured.avif', $post_id );
+				// Build filename using adapter convention (Hugo: "featured.avif", Astro: "{original}.avif")
+				$avif_filename = $adapter->get_featured_image_name( $original_basename, 'avif' );
+				$github_path   = $images_dir . '/' . $avif_filename;
 				$files[ $github_path ] = $avif_content;
 
 				Logger::info(
@@ -468,10 +483,10 @@ class Media_Processor {
 				Logger::error(
 					'Failed to read featured AVIF file contents',
 					array(
-						'post_id'    => $post_id,
-						'avif_path'  => $avif_path,
+						'post_id'     => $post_id,
+						'avif_path'   => $avif_path,
 						'file_exists' => file_exists( $avif_path ),
-						'filesize'   => file_exists( $avif_path ) ? filesize( $avif_path ) : 0,
+						'filesize'    => file_exists( $avif_path ) ? filesize( $avif_path ) : 0,
 					)
 				);
 			}
@@ -487,10 +502,11 @@ class Media_Processor {
 	 *
 	 * @param int    $post_id Post ID.
 	 * @param string $content Post content HTML.
+	 * @param object $adapter SSG adapter instance for path generation.
 	 *
 	 * @return array Associative array with 'files' (path => content) and 'mappings' (original URL => relative path).
 	 */
-	public function get_post_images_data( int $post_id, string $content ): array {
+	public function get_post_images_data( int $post_id, string $content, $adapter ): array {
 		Logger::info(
 			'Processing post images for atomic commit',
 			array( 'post_id' => $post_id )
@@ -522,7 +538,7 @@ class Media_Processor {
 		$url_mappings = array();
 
 		foreach ( $image_urls as $original_url ) {
-			$result = $this->get_single_image_data( $post_id, $original_url );
+			$result = $this->get_single_image_data( $post_id, $original_url, $adapter );
 
 			if ( is_wp_error( $result ) ) {
 				Logger::error(
@@ -564,10 +580,11 @@ class Media_Processor {
 	 *
 	 * @param int    $post_id      Post ID.
 	 * @param string $original_url Original image URL.
+	 * @param object $adapter      SSG adapter instance for path generation.
 	 *
 	 * @return array|\WP_Error Array with 'files' and 'relative_path', or WP_Error on failure.
 	 */
-	private function get_single_image_data( int $post_id, string $original_url ): array|\WP_Error {
+	private function get_single_image_data( int $post_id, string $original_url, $adapter ): array|\WP_Error {
 		// Download image to temp directory
 		$local_path = $this->download_image( $original_url, $post_id );
 
@@ -580,6 +597,9 @@ class Media_Processor {
 		$pathinfo = pathinfo( $filename );
 		$basename = $pathinfo['filename'];
 
+		// Get images directory from adapter
+		$images_dir = $adapter->get_images_dir( $post_id );
+
 		$files = array();
 		$preferred_format = null;
 
@@ -588,7 +608,7 @@ class Media_Processor {
 		if ( ! is_wp_error( $webp_path ) ) {
 			$webp_content = file_get_contents( $webp_path );
 			if ( false !== $webp_content ) {
-				$github_path = sprintf( 'static/images/%d/%s.webp', $post_id, $basename );
+				$github_path = $images_dir . '/' . $basename . '.webp';
 				$files[ $github_path ] = $webp_content;
 				$preferred_format = 'webp';
 
@@ -608,7 +628,7 @@ class Media_Processor {
 		if ( ! is_wp_error( $avif_path ) ) {
 			$avif_content = file_get_contents( $avif_path );
 			if ( false !== $avif_content ) {
-				$github_path = sprintf( 'static/images/%d/%s.avif', $post_id, $basename );
+				$github_path = $images_dir . '/' . $basename . '.avif';
 				$files[ $github_path ] = $avif_content;
 
 				if ( null === $preferred_format ) {
@@ -641,7 +661,7 @@ class Media_Processor {
 		if ( empty( $files ) ) {
 			$original_content = file_get_contents( $local_path );
 			if ( false !== $original_content ) {
-				$github_path = sprintf( 'static/images/%d/%s', $post_id, $filename );
+				$github_path = $images_dir . '/' . $filename;
 				$files[ $github_path ] = $original_content;
 				$preferred_format = pathinfo( $filename, PATHINFO_EXTENSION );
 			} else {
@@ -652,12 +672,9 @@ class Media_Processor {
 			}
 		}
 
-		// Determine relative path for content replacement
-		$relative_path = sprintf(
-			'/images/%d/%s.%s',
-			$post_id,
-			$basename,
-			$preferred_format
+		// Build relative path for content replacement
+		// Extract directory name (e.g., "image" from "public/image" or "images/7" from "static/images/7")
+		$relative_path = '/' . basename( $images_dir ) . '/' . $basename . '.' . $preferred_format;
 		);
 
 		return array(
