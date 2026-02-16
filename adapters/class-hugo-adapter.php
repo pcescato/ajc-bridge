@@ -546,19 +546,18 @@ class Hugo_Adapter implements Adapter_Interface {
 
 		return $value;
 	}
-}
 
-/**
- * Get featured image filename for Hugo
- *
- * Hugo uses fixed naming convention: featured.{extension}
- *
- * @param string $original_basename Original filename without extension (ignored).
- * @param string $extension         New file extension (webp, avif, etc).
- *
- * @return string Fixed filename "featured.{extension}".
- */
-public function get_featured_image_name( string $original_basename, string $extension ): string {
-return 'featured.' . $extension;
-}
+	/**
+	 * Get featured image filename for Hugo
+	 *
+	 * Hugo uses fixed naming convention: featured.{extension}
+	 *
+	 * @param string $original_basename Original filename without extension (ignored).
+	 * @param string $extension         New file extension (webp, avif, etc).
+	 *
+	 * @return string Fixed filename "featured.{extension}".
+	 */
+	public function get_featured_image_name( string $original_basename, string $extension ): string {
+		return 'featured.' . $extension;
+	}
 }

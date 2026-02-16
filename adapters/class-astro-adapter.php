@@ -569,19 +569,18 @@ class Astro_Adapter implements Adapter_Interface {
 
 		return $value;
 	}
-}
 
-/**
- * Get featured image filename for Astro
- *
- * Astro preserves original filename: {original}.{extension}
- *
- * @param string $original_basename Original filename without extension.
- * @param string $extension         New file extension (webp, avif, etc).
- *
- * @return string Preserved filename "{original}.{extension}".
- */
-public function get_featured_image_name( string $original_basename, string $extension ): string {
-return $original_basename . '.' . $extension;
-}
+	/**
+	 * Get featured image filename for Astro
+	 *
+	 * Astro preserves original filename: {original}.{extension}
+	 *
+	 * @param string $original_basename Original filename without extension.
+	 * @param string $extension         New file extension (webp, avif, etc).
+	 *
+	 * @return string Preserved filename "{original}.{extension}".
+	 */
+	public function get_featured_image_name( string $original_basename, string $extension ): string {
+		return $original_basename . '.' . $extension;
+	}
 }

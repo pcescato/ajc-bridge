@@ -675,7 +675,6 @@ class Media_Processor {
 		// Build relative path for content replacement
 		// Extract directory name (e.g., "image" from "public/image" or "images/7" from "static/images/7")
 		$relative_path = '/' . basename( $images_dir ) . '/' . $basename . '.' . $preferred_format;
-		);
 
 		return array(
 			'files'         => $files,
