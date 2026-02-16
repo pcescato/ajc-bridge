@@ -98,10 +98,13 @@ class Astro_Adapter implements Adapter_Interface {
 	 * Creates YAML frontmatter with fields required by Astro:
 	 * - title: string
 	 * - pubDate: ISO 8601 datetime
-	 * - description: string (auto-generated from excerpt if empty)
-	 * - author: string
+	 * - updated: ISO 8601 datetime
+	 * - slug: string
+	 * - draft: boolean
+	 * - categories: array
 	 * - tags: array
-	 * - heroImage: string (optional, featured image)
+	 * - description: string (auto-generated from excerpt if empty)
+	 * - image: string (optional, featured image path)
 	 *
 	 * @param \WP_Post $post                WordPress post object.
 	 * @param string   $featured_image_path Optional. Processed featured image path.
@@ -117,16 +120,19 @@ class Astro_Adapter implements Adapter_Interface {
 		// pubDate in ISO 8601 format (required)
 		$front_matter['pubDate'] = get_the_date( 'c', $post );
 
-		// Description (auto-generate from excerpt if empty)
-		$description = $this->get_excerpt( $post );
-		if ( ! empty( $description ) ) {
-			$front_matter['description'] = $description;
-		}
+		// updated date in ISO 8601 format (required)
+		$front_matter['updated'] = get_the_modified_date( 'c', $post );
 
-		// Author
-		$author = get_userdata( $post->post_author );
-		if ( $author ) {
-			$front_matter['author'] = $author->display_name;
+		// Slug (required)
+		$front_matter['slug'] = $post->post_name;
+
+		// Draft status (required)
+		$front_matter['draft'] = ( 'publish' !== $post->post_status );
+
+		// Categories
+		$categories = $this->get_terms( $post->ID, 'category' );
+		if ( ! empty( $categories ) ) {
+			$front_matter['categories'] = $categories;
 		}
 
 		// Tags
@@ -135,18 +141,22 @@ class Astro_Adapter implements Adapter_Interface {
 			$front_matter['tags'] = $tags;
 		}
 
-		// Hero image (featured image)
+		// Description (required)
+		$description = $this->get_excerpt( $post );
+		if ( ! empty( $description ) ) {
+			$front_matter['description'] = $description;
+		}
+
+		// Image (optional - only if featured image exists)
 		if ( ! empty( $featured_image_path ) ) {
 			// Use /image/ path for Astro public directory
 			$post_id = $post->ID;
-			$front_matter['heroImage'] = sprintf( '/image/%d/featured.avif', $post_id );
-			
-			// Add image variants for responsive images
-			$front_matter['heroImageWebp'] = sprintf( '/image/%d/featured.webp', $post_id );
+			// Prefer AVIF if available, fallback to WebP
+			$front_matter['image'] = sprintf( '/image/%d/featured.avif', $post_id );
 		} elseif ( $featured_image = $this->get_featured_image( $post->ID ) ) {
 			// Fallback to original if no processed path provided
 			$filename = basename( $featured_image );
-			$front_matter['heroImage'] = '/image/' . $filename;
+			$front_matter['image'] = '/image/' . $filename;
 		}
 
 		// Build YAML frontmatter
@@ -171,13 +181,16 @@ class Astro_Adapter implements Adapter_Interface {
 		$front_matter = array(
 			'title'       => $post->post_title,
 			'pubDate'     => get_the_date( 'c', $post ),
+			'updated'     => get_the_modified_date( 'c', $post ),
+			'slug'        => $post->post_name,
+			'draft'       => ( 'publish' !== $post->post_status ),
 			'description' => $this->get_excerpt( $post ),
 		);
 
-		// Add author
-		$author = get_userdata( $post->post_author );
-		if ( $author ) {
-			$front_matter['author'] = $author->display_name;
+		// Add categories
+		$categories = $this->get_terms( $post->ID, 'category' );
+		if ( ! empty( $categories ) ) {
+			$front_matter['categories'] = $categories;
 		}
 
 		// Add tags
@@ -186,14 +199,13 @@ class Astro_Adapter implements Adapter_Interface {
 			$front_matter['tags'] = $tags;
 		}
 
-		// Add hero image
+		// Add image (optional - only if featured image exists)
 		if ( ! empty( $featured_image_path ) ) {
 			$post_id = $post->ID;
-			$front_matter['heroImage'] = sprintf( '/image/%d/featured.avif', $post_id );
-			$front_matter['heroImageWebp'] = sprintf( '/image/%d/featured.webp', $post_id );
+			$front_matter['image'] = sprintf( '/image/%d/featured.avif', $post_id );
 		} elseif ( $featured_image = $this->get_featured_image( $post->ID ) ) {
 			$filename = basename( $featured_image );
-			$front_matter['heroImage'] = '/image/' . $filename;
+			$front_matter['image'] = '/image/' . $filename;
 		}
 
 		return $front_matter;
