@@ -148,11 +148,12 @@ class Astro_Adapter implements Adapter_Interface {
 		}
 
 		// Image (optional - only if featured image exists)
+		// Astro uses flat structure: /image/filename.ext (no post ID folders)
 		if ( ! empty( $featured_image_path ) ) {
-			// Use /image/ path for Astro public directory
-			$post_id = $post->ID;
-			// Prefer AVIF if available, fallback to WebP
-			$front_matter['image'] = sprintf( '/image/%d/featured.avif', $post_id );
+			// Extract just the filename from the processed path
+			// Featured images are named like: featured.avif, featured.webp
+			$filename = basename( $featured_image_path );
+			$front_matter['image'] = '/image/' . $filename;
 		} elseif ( $featured_image = $this->get_featured_image( $post->ID ) ) {
 			// Fallback to original if no processed path provided
 			$filename = basename( $featured_image );
@@ -200,9 +201,10 @@ class Astro_Adapter implements Adapter_Interface {
 		}
 
 		// Add image (optional - only if featured image exists)
+		// Astro uses flat structure: /image/filename.ext (no post ID folders)
 		if ( ! empty( $featured_image_path ) ) {
-			$post_id = $post->ID;
-			$front_matter['image'] = sprintf( '/image/%d/featured.avif', $post_id );
+			$filename = basename( $featured_image_path );
+			$front_matter['image'] = '/image/' . $filename;
 		} elseif ( $featured_image = $this->get_featured_image( $post->ID ) ) {
 			$filename = basename( $featured_image );
 			$front_matter['image'] = '/image/' . $filename;
