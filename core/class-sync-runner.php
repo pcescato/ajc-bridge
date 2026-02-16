@@ -390,6 +390,9 @@ class Sync_Runner {
 	private static function sync_to_github( \WP_Post $post ): array|\WP_Error {
 		$post_id = $post->ID;
 
+		// Load settings for adapter selection
+		$settings = get_option( 'ajc_bridge_settings', array() );
+
 		// Test GitHub connection before heavy image processing to save resources
 		$git_api = new Git_API();
 		$connection_test = $git_api->test_connection();
@@ -423,6 +426,14 @@ class Sync_Runner {
 
 			// Load adapter based on settings (must be done before media processing)
 			$ssg_type = $settings['ssg_type'] ?? 'hugo';
+			
+			Logger::info(
+				'Adapter selected for sync',
+				array(
+					'post_id'  => $post_id,
+					'ssg_type' => $ssg_type,
+				)
+			);
 			
 			require_once AJC_BRIDGE_PATH . 'adapters/interface-adapter.php';
 			
@@ -700,6 +711,14 @@ class Sync_Runner {
 
 		// Load adapter based on settings (needed for paths)
 		$ssg_type = $settings['ssg_type'] ?? 'hugo';
+		
+		Logger::info(
+			'Adapter selected for deletion',
+			array(
+				'post_id'  => $post_id,
+				'ssg_type' => $ssg_type,
+			)
+		);
 		
 		require_once AJC_BRIDGE_PATH . 'adapters/interface-adapter.php';
 		
