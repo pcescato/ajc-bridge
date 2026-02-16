@@ -36,11 +36,14 @@ class Astro_Adapter implements Adapter_Interface {
 	/**
 	 * Get images directory path for Astro
 	 *
-	 * Astro default: public/image
+	 * Astro uses flat structure: public/image
+	 * Post ID parameter is ignored (Astro doesn't use post-specific folders).
+	 *
+	 * @param int|null $post_id Optional post ID (ignored for Astro).
 	 *
 	 * @return string Images directory path.
 	 */
-	private function get_images_dir(): string {
+	public function get_images_dir( ?int $post_id = null ): string {
 		$settings = get_option( 'ajc_bridge_settings', array() );
 		return $settings['astro_images_dir'] ?? 'public/image';
 	}

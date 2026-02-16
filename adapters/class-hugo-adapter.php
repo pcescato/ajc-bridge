@@ -548,6 +548,23 @@ class Hugo_Adapter implements Adapter_Interface {
 	}
 
 	/**
+	 * Get images directory path for Hugo
+	 *
+	 * Hugo uses post-specific folders: static/images/{post_id}
+	 * If no post_id provided, returns base directory without trailing slash.
+	 *
+	 * @param int|null $post_id Optional post ID for post-specific folder.
+	 *
+	 * @return string Images directory path.
+	 */
+	public function get_images_dir( ?int $post_id = null ): string {
+		if ( null === $post_id ) {
+			return 'static/images';
+		}
+		return 'static/images/' . $post_id;
+	}
+
+	/**
 	 * Get featured image filename for Hugo
 	 *
 	 * Hugo uses fixed naming convention: featured.{extension}

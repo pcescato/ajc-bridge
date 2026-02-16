@@ -61,6 +61,20 @@ interface Adapter_Interface {
 	public function get_front_matter( \WP_Post $post, string $featured_image_path = '' ): array;
 
 	/**
+	 * Get images directory path for this SSG
+	 *
+	 * Returns the GitHub repository path where images are stored.
+	 * Different SSGs use different structures:
+	 * - Hugo: static/images/{post_id}/ (post-specific folders)
+	 * - Astro: public/image/ (flat structure)
+	 *
+	 * @param int|null $post_id Optional post ID for SSGs that use post-specific folders.
+	 *
+	 * @return string Images directory path (e.g., "public/image" or "static/images/7").
+	 */
+	public function get_images_dir( ?int $post_id = null ): string;
+
+	/**
 	 * Get featured image filename for this SSG
 	 *
 	 * Different SSGs have different naming conventions:
