@@ -295,10 +295,15 @@ class Sync_Runner {
 			require_once AJC_BRIDGE_PATH . 'adapters/class-devto-adapter.php';
 			$adapter = new \AjcBridge\Adapters\DevTo_Adapter();
 
+			// Set canonical URL if provided
+			if ( $canonical_url ) {
+				$adapter->set_canonical_url( $canonical_url );
+			}
+
 			Logger::info( 'Converting post to Dev.to markdown', array( 'post_id' => $post_id ) );
 
-			// Convert to markdown with front matter (pass canonical URL)
-			$markdown = $adapter->convert( $post, $canonical_url );
+			// Convert to markdown with front matter
+			$markdown = $adapter->convert( $post );
 
 			Logger::info( 'Markdown conversion complete', array( 'post_id' => $post_id, 'length' => strlen( $markdown ) ) );
 

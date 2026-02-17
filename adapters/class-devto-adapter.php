@@ -25,15 +25,35 @@ if ( ! defined( 'ABSPATH' ) ) {
 class DevTo_Adapter implements Adapter_Interface {
 
 	/**
+	 * Canonical URL for syndication (optional)
+	 *
+	 * @var string|null
+	 */
+	private ?string $canonical_url = null;
+
+	/**
+	 * Set canonical URL for syndication
+	 *
+	 * @param string|null $url Canonical URL.
+	 */
+	public function set_canonical_url( ?string $url ): void {
+		$this->canonical_url = $url;
+	}
+
+	/**
 	 * Convert WordPress post to Dev.to Markdown format
 	 *
-	 * @param \WP_Post    $post          WordPress post object.
-	 * @param string|null $canonical_url Optional canonical URL for syndication.
+	 * Note: Dev.to doesn't use image_mapping or featured_image_path parameters
+	 * as it requires absolute URLs to external images.
+	 *
+	 * @param \WP_Post $post                WordPress post object.
+	 * @param array    $image_mapping       Unused for Dev.to (images must be absolute URLs).
+	 * @param string   $featured_image_path Unused for Dev.to (uses post featured image directly).
 	 *
 	 * @return string Complete Markdown content with front matter.
 	 */
-	public function convert( \WP_Post $post, ?string $canonical_url = null ): string {
-		$front_matter = $this->get_front_matter( $post, $canonical_url );
+	public function convert( \WP_Post $post, array $image_mapping = array(), string $featured_image_path = '' ): string {
+		$front_matter = $this->get_front_matter( $post, $this->canonical_url );
 		$content      = $this->convert_content( $post->post_content );
 
 		return $this->build_markdown( $front_matter, $content );
@@ -385,5 +405,36 @@ class DevTo_Adapter implements Adapter_Interface {
 		$yaml .= "---\n\n";
 
 		return $yaml . $content;
+	}
+
+	/**
+	 * Get images directory path
+	 *
+	 * Dev.to is API-based and doesn't store images locally.
+	 * This method is required by the interface but not used.
+	 *
+	 * @param int|null $post_id Post ID (unused).
+	 *
+	 * @return string Empty string (not applicable for Dev.to).
+	 */
+	public function get_images_dir( ?int $post_id = null ): string {
+		// Dev.to uses external image URLs, no local storage
+		return '';
+	}
+
+	/**
+	 * Get featured image filename
+	 *
+	 * Dev.to is API-based and doesn't store images locally.
+	 * This method is required by the interface but not used.
+	 *
+	 * @param string $original_basename Original filename without extension.
+	 * @param string $extension         New file extension.
+	 *
+	 * @return string Empty string (not applicable for Dev.to).
+	 */
+	public function get_featured_image_name( string $original_basename, string $extension ): string {
+		// Dev.to uses external image URLs, no local filename needed
+		return '';
 	}
 }
