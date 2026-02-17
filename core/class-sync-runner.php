@@ -290,7 +290,8 @@ class Sync_Runner {
 		$sync_error  = null;
 
 		try {
-			// Load Dev.to adapter
+			// Load interface first, then Dev.to adapter
+			require_once AJC_BRIDGE_PATH . 'adapters/interface-adapter.php';
 			require_once AJC_BRIDGE_PATH . 'adapters/class-devto-adapter.php';
 			$adapter = new \AjcBridge\Adapters\DevTo_Adapter();
 
