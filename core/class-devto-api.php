@@ -49,12 +49,13 @@ class DevTo_API {
 	 *
 	 * Creates new article (POST) or updates existing (PUT) based on article_id.
 	 *
-	 * @param string   $markdown   Complete markdown content with front matter.
-	 * @param int|null $article_id Optional. Existing article ID for updates.
+	 * @param string     $markdown        Complete markdown content with front matter.
+	 * @param int|null   $article_id      Optional. Existing article ID for updates.
+	 * @param array|null $current_article Optional. Current article state from Dev.to (for updates).
 	 *
 	 * @return array|\WP_Error Article data on success, WP_Error on failure.
 	 */
-	public function publish_article( string $markdown, ?int $article_id = null ): array|\WP_Error {
+	public function publish_article( string $markdown, ?int $article_id = null, ?array $current_article = null ): array|\WP_Error {
 		if ( empty( $this->api_key ) ) {
 			return new \WP_Error(
 				'missing_api_key',
@@ -72,6 +73,18 @@ class DevTo_API {
 				'body_markdown' => $markdown,
 			),
 		);
+
+		// Preserve published status from Dev.to if available
+		if ( $article_id && is_array( $current_article ) && isset( $current_article['published'] ) ) {
+			$body['article']['published'] = $current_article['published'];
+			Logger::info(
+				'Preserving Dev.to published status',
+				array(
+					'article_id' => $article_id,
+					'published'  => $current_article['published'],
+				)
+			);
+		}
 
 		$response = wp_remote_request(
 			$url,
@@ -180,6 +193,8 @@ class DevTo_API {
 	/**
 	 * Update existing article on Dev.to
 	 *
+	 * Preserves the published status from Dev.to to avoid overriding it.
+	 *
 	 * @param int    $article_id Dev.to article ID.
 	 * @param string $markdown   Complete markdown content with front matter.
 	 *
@@ -191,7 +206,29 @@ class DevTo_API {
 			array( 'article_id' => $article_id )
 		);
 		
-		$result = $this->publish_article( $markdown, $article_id );
+		// Fetch current article state to preserve published status
+		$current_article = $this->get_article( $article_id );
+		
+		if ( is_wp_error( $current_article ) ) {
+			Logger::warning(
+				'Could not fetch current article state, proceeding without preserving published status',
+				array(
+					'article_id' => $article_id,
+					'error'      => $current_article->get_error_message(),
+				)
+			);
+			// Continue anyway - markdown front matter will control published status
+		} else {
+			Logger::info(
+				'Current article state fetched',
+				array(
+					'article_id' => $article_id,
+					'published'  => $current_article['published'] ?? null,
+				)
+			);
+		}
+		
+		$result = $this->publish_article( $markdown, $article_id, $current_article );
 		
 		if ( is_wp_error( $result ) ) {
 			return $result;
@@ -206,6 +243,64 @@ class DevTo_API {
 		);
 		
 		return $result;
+	}
+
+	/**
+	 * Get single article by ID
+	 *
+	 * Fetches current state of a specific article from Dev.to.
+	 *
+	 * @param int $article_id Dev.to article ID.
+	 *
+	 * @return array|\WP_Error Article data on success, WP_Error on failure.
+	 */
+	public function get_article( int $article_id ): array|\WP_Error {
+		if ( empty( $this->api_key ) ) {
+			return new \WP_Error(
+				'missing_api_key',
+				__( 'Dev.to API key is required.', 'ajc-bridge' )
+			);
+		}
+
+		$url = self::API_BASE . '/articles/' . $article_id;
+
+		$response = wp_remote_get(
+			$url,
+			array(
+				'headers' => array(
+					'api-key' => $this->api_key,
+				),
+				'timeout' => 15,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$http_code = wp_remote_retrieve_response_code( $response );
+
+		if ( 200 !== $http_code ) {
+			$body_data = wp_remote_retrieve_body( $response );
+			$data      = json_decode( $body_data, true );
+			$error_message = $this->extract_error_message( $data, $http_code );
+
+			return new \WP_Error(
+				'api_error',
+				sprintf(
+					/* translators: %1$s: Article ID, %2$s: HTTP code, %3$s: Error message */
+					__( 'Failed to fetch article %1$s (HTTP %2$s): %3$s', 'ajc-bridge' ),
+					$article_id,
+					$http_code,
+					$error_message
+				)
+			);
+		}
+
+		$body_data = wp_remote_retrieve_body( $response );
+		$data      = json_decode( $body_data, true );
+
+		return is_array( $data ) ? $data : array();
 	}
 
 	/**
