@@ -300,13 +300,6 @@ class Sync_Runner {
 				$adapter->set_canonical_url( $canonical_url );
 			}
 
-			Logger::info( 'Converting post to Dev.to markdown', array( 'post_id' => $post_id ) );
-
-			// Convert to markdown with front matter
-			$markdown = $adapter->convert( $post );
-
-			Logger::info( 'Markdown conversion complete', array( 'post_id' => $post_id, 'length' => strlen( $markdown ) ) );
-
 			// Initialize API client
 			require_once AJC_BRIDGE_PATH . 'core/class-devto-api.php';
 			$devto_api = new DevTo_API();
@@ -314,6 +307,33 @@ class Sync_Runner {
 			// Check if article already exists on Dev.to
 			$existing_article_id = get_post_meta( $post_id, '_ajc_bridge_devto_id', true );
 			$existing_article_id = $existing_article_id ? (int) $existing_article_id : null;
+
+			// Fetch current published status from Dev.to if updating
+			$published_status = false; // Default for new articles
+			if ( $existing_article_id ) {
+				$current_article = $devto_api->get_article( $existing_article_id );
+				if ( ! is_wp_error( $current_article ) && isset( $current_article['published'] ) ) {
+					$published_status = (bool) $current_article['published'];
+					Logger::info(
+						'Fetched current Dev.to published status',
+						array(
+							'post_id'    => $post_id,
+							'article_id' => $existing_article_id,
+							'published'  => $published_status,
+						)
+					);
+				}
+			}
+
+			// Set published status in adapter so it's included in front matter
+			$adapter->set_published_status( $published_status );
+
+			Logger::info( 'Converting post to Dev.to markdown', array( 'post_id' => $post_id ) );
+
+			// Convert to markdown with front matter
+			$markdown = $adapter->convert( $post );
+
+			Logger::info( 'Markdown conversion complete', array( 'post_id' => $post_id, 'length' => strlen( $markdown ) ) );
 
 			// Create or update article
 			if ( $existing_article_id ) {
@@ -661,7 +681,7 @@ class Sync_Runner {
 	 */
 	private static function update_sync_meta( int $post_id, string $status ): void {
 		update_post_meta( $post_id, '_ajc_sync_status', $status );
-		update_post_meta( $post_id, '_ajc_sync_last', current_time( 'mysql' ) );
+		update_post_meta( $post_id, '_ajc_sync_last', time() );
 	}
 
 	/**

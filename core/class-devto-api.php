@@ -74,24 +74,10 @@ class DevTo_API {
 			),
 		);
 
-		// Control published status via API payload (not front matter)
+		// NOTE: Published status is primarily controlled by front matter in the markdown.
+		// We also include it in the API payload for consistency, though front matter takes precedence.
 		if ( $article_id && is_array( $current_article ) && isset( $current_article['published'] ) ) {
-			// UPDATE: Preserve published status from Dev.to
 			$body['article']['published'] = $current_article['published'];
-			Logger::info(
-				'Preserving Dev.to published status',
-				array(
-					'article_id' => $article_id,
-					'published'  => $current_article['published'],
-				)
-			);
-		} else {
-			// CREATE: Default to draft for manual review on Dev.to
-			$body['article']['published'] = false;
-			Logger::info(
-				'Setting new article as draft',
-				array( 'published' => false )
-			);
 		}
 
 		$response = wp_remote_request(

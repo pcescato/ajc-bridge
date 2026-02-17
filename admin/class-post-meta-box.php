@@ -119,15 +119,21 @@ class Post_Meta_Box {
 						</p>
 					<?php endif; ?>
 					<?php if ( $devto_sync_time ) : ?>
+						<?php
+						// Convert to Unix timestamp if MySQL format
+						$devto_timestamp = is_numeric( $devto_sync_time ) ? (int) $devto_sync_time : strtotime( $devto_sync_time );
+						?>
+						<?php if ( $devto_timestamp && $devto_timestamp > 0 ) : ?>
 						<p style="margin: 0; color: #666; font-size: 12px;">
 							<?php
 							printf(
 								/* translators: %s: human-readable time difference */
 								esc_html__( 'Last synced: %s ago', 'ajc-bridge' ),
-								esc_html( human_time_diff( (int) $devto_sync_time, time() ) )
+								esc_html( human_time_diff( $devto_timestamp, time() ) )
 							);
 							?>
 						</p>
+						<?php endif; ?>
 					<?php endif; ?>
 				</div>
 			<?php endif; ?>
@@ -152,7 +158,12 @@ class Post_Meta_Box {
 					}
 
 					if ( $sync_last ) {
-						echo '<br><small>' . esc_html( human_time_diff( (int) $sync_last, time() ) ) . ' ' . esc_html__( 'ago', 'ajc-bridge' ) . '</small>';
+						// Convert to Unix timestamp if MySQL format
+						$timestamp = is_numeric( $sync_last ) ? (int) $sync_last : strtotime( $sync_last );
+						
+						if ( $timestamp && $timestamp > 0 ) {
+							echo '<br><small>' . esc_html( human_time_diff( $timestamp, time() ) ) . ' ' . esc_html__( 'ago', 'ajc-bridge' ) . '</small>';
+						}
 					}
 					?>
 				</p>

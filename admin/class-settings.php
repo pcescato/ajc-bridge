@@ -1498,7 +1498,13 @@ class Settings {
 					}
 
 					// Format last sync time
-					$time_ago = $last_sync ? human_time_diff( strtotime( $last_sync ), current_time( 'timestamp' ) ) . ' ' . __( 'ago', 'ajc-bridge' ) : __( 'Never', 'ajc-bridge' );
+					$time_ago = __( 'Never', 'ajc-bridge' );
+					if ( $last_sync ) {
+						$timestamp = is_numeric( $last_sync ) ? (int) $last_sync : strtotime( $last_sync );
+						if ( $timestamp && $timestamp > 0 ) {
+							$time_ago = human_time_diff( $timestamp, time() ) . ' ' . __( 'ago', 'ajc-bridge' );
+						}
+					}
 					?>
 					<tr>
 						<td class="column-primary">

@@ -32,12 +32,30 @@ class DevTo_Adapter implements Adapter_Interface {
 	private ?string $canonical_url = null;
 
 	/**
+	 * Published status for the article
+	 *
+	 * @var bool
+	 */
+	private bool $published = false;
+
+	/**
 	 * Set canonical URL for syndication
 	 *
 	 * @param string|null $url Canonical URL.
 	 */
 	public function set_canonical_url( ?string $url ): void {
 		$this->canonical_url = $url;
+	}
+
+	/**
+	 * Set published status for the article
+	 *
+	 * This is fetched from Dev.to before update to preserve the current status.
+	 *
+	 * @param bool $published Published status.
+	 */
+	public function set_published_status( bool $published ): void {
+		$this->published = $published;
 	}
 
 	/**
@@ -85,13 +103,13 @@ class DevTo_Adapter implements Adapter_Interface {
 	public function get_front_matter( \WP_Post $post, ?string $canonical_url = null ): array {
 		$front_matter = array(
 			'title'       => $post->post_title,
+			'published'   => $this->published, // Use current Dev.to status or false for new articles
 			'description' => $this->get_description( $post ),
 			'tags'        => $this->get_tags( $post->ID ),
 		);
 		
-		// NOTE: 'published' is NOT included in front matter.
-		// It's controlled exclusively via API payload in DevTo_API::publish_article()
-		// to preserve Dev.to's published status during updates.
+		// NOTE: 'published' is set from Dev.to's current status (fetched in sync_runner)
+		// to preserve the published state during updates. New articles default to false.
 
 		// Add cover image if available (must be absolute URL)
 		$cover_image = $this->get_cover_image( $post->ID );
