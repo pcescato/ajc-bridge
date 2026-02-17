@@ -76,8 +76,10 @@ class DevTo_API {
 
 		// NOTE: Published status is primarily controlled by front matter in the markdown.
 		// We also include it in the API payload for consistency, though front matter takes precedence.
-		if ( $article_id && is_array( $current_article ) && isset( $current_article['published'] ) ) {
-			$body['article']['published'] = $current_article['published'];
+		// Dev.to API doesn't return 'published' field, so we check published_timestamp/published_at
+		if ( $article_id && is_array( $current_article ) ) {
+			$is_published = ! empty( $current_article['published_timestamp'] ) || ! empty( $current_article['published_at'] );
+			$body['article']['published'] = $is_published;
 		}
 
 		$response = wp_remote_request(
@@ -213,11 +215,14 @@ class DevTo_API {
 			);
 			// Continue anyway - markdown front matter will control published status
 		} else {
+			// Check published status using published_timestamp field
+			$is_published = ! empty( $current_article['published_timestamp'] ) || ! empty( $current_article['published_at'] );
 			Logger::info(
 				'Current article state fetched',
 				array(
-					'article_id' => $article_id,
-					'published'  => $current_article['published'] ?? null,
+					'article_id'         => $article_id,
+					'published'          => $is_published,
+					'published_timestamp' => $current_article['published_timestamp'] ?? null,
 				)
 			);
 		}
