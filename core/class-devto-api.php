@@ -74,8 +74,9 @@ class DevTo_API {
 			),
 		);
 
-		// Preserve published status from Dev.to if available
+		// Control published status via API payload (not front matter)
 		if ( $article_id && is_array( $current_article ) && isset( $current_article['published'] ) ) {
+			// UPDATE: Preserve published status from Dev.to
 			$body['article']['published'] = $current_article['published'];
 			Logger::info(
 				'Preserving Dev.to published status',
@@ -83,6 +84,13 @@ class DevTo_API {
 					'article_id' => $article_id,
 					'published'  => $current_article['published'],
 				)
+			);
+		} else {
+			// CREATE: Default to draft for manual review on Dev.to
+			$body['article']['published'] = false;
+			Logger::info(
+				'Setting new article as draft',
+				array( 'published' => false )
 			);
 		}
 

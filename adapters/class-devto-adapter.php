@@ -85,10 +85,13 @@ class DevTo_Adapter implements Adapter_Interface {
 	public function get_front_matter( \WP_Post $post, ?string $canonical_url = null ): array {
 		$front_matter = array(
 			'title'       => $post->post_title,
-			'published'   => false, // Always sync as draft for manual review on Dev.to
 			'description' => $this->get_description( $post ),
 			'tags'        => $this->get_tags( $post->ID ),
 		);
+		
+		// NOTE: 'published' is NOT included in front matter.
+		// It's controlled exclusively via API payload in DevTo_API::publish_article()
+		// to preserve Dev.to's published status during updates.
 
 		// Add cover image if available (must be absolute URL)
 		$cover_image = $this->get_cover_image( $post->ID );
