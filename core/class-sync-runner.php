@@ -295,8 +295,12 @@ class Sync_Runner {
 			require_once AJC_BRIDGE_PATH . 'adapters/class-devto-adapter.php';
 			$adapter = new \AjcBridge\Adapters\DevTo_Adapter();
 
+			Logger::info( 'Converting post to Dev.to markdown', array( 'post_id' => $post_id ) );
+
 			// Convert to markdown with front matter (pass canonical URL)
 			$markdown = $adapter->convert( $post, $canonical_url );
+
+			Logger::info( 'Markdown conversion complete', array( 'post_id' => $post_id, 'length' => strlen( $markdown ) ) );
 
 			// Initialize API client
 			require_once AJC_BRIDGE_PATH . 'core/class-devto-api.php';
@@ -316,6 +320,8 @@ class Sync_Runner {
 				Logger::info( 'Creating new Dev.to article', array( 'post_id' => $post_id ) );
 				$result = $devto_api->create_article( $markdown );
 			}
+
+			Logger::info( 'Dev.to API call complete', array( 'post_id' => $post_id, 'is_error' => is_wp_error( $result ) ) );
 
 			if ( is_wp_error( $result ) ) {
 				$sync_error = $result;
