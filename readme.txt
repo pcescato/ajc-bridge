@@ -18,7 +18,7 @@ AJC Bridge is a production-grade WordPress plugin that gives you complete contro
 
 * **WordPress Only**: Keep your content on WordPress with no external sync (plugin configured but sync disabled)
 * **WordPress + dev.to Syndication**: WordPress remains your public site while optionally syndicating posts to dev.to with proper canonical URLs
-* **GitHub Only (Headless)**: WordPress becomes admin-only, all posts sync to Hugo/Jekyll on GitHub Pages
+* **GitHub Only (Headless)**: WordPress becomes admin-only, all posts sync to Hugo/Jekyll/Astro on GitHub Pages
 * **Dev.to Only (Headless)**: WordPress becomes admin-only, all posts sync to dev.to
 * **Dual Publishing (GitHub + dev.to)**: WordPress becomes admin-only, posts sync to GitHub (canonical) with optional dev.to syndication
 
