@@ -38,8 +38,6 @@ jobs:
             --exclude=.gitignore \
             --exclude=.gitattributes \
             --exclude=.distignore \
-            --exclude=composer.json \
-            --exclude=composer.lock \
             --exclude=node_modules \
             --exclude=tests \
             --exclude=docs \

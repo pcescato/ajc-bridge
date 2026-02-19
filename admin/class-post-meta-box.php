@@ -26,6 +26,37 @@ class Post_Meta_Box {
 	public static function init(): void {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_meta_box' ) );
 		add_action( 'save_post', array( __CLASS__, 'save_meta_box' ), 10, 2 );
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_styles' ) );
+	}
+
+	/**
+	 * Enqueue styles for meta box
+	 *
+	 * @return void
+	 */
+	public static function enqueue_styles(): void {
+		$screen = get_current_screen();
+		if ( ! $screen || 'post' !== $screen->base ) {
+			return;
+		}
+
+		$css = '
+		.atomic-jamstack-meta-box {
+			padding: 10px 0;
+		}
+		.atomic-jamstack-meta-box label {
+			font-weight: 400;
+		}
+		.atomic-jamstack-meta-box hr {
+			border: 0;
+			border-top: 1px solid #ddd;
+		}
+		.atomic-jamstack-meta-box .description {
+			font-style: normal;
+		}
+		';
+
+		wp_add_inline_style( 'wp-admin', $css );
 	}
 
 	/**
@@ -169,22 +200,6 @@ class Post_Meta_Box {
 				</p>
 			<?php endif; ?>
 		</div>
-
-		<style>
-		.atomic-jamstack-meta-box {
-			padding: 10px 0;
-		}
-		.atomic-jamstack-meta-box label {
-			font-weight: 400;
-		}
-		.atomic-jamstack-meta-box hr {
-			border: 0;
-			border-top: 1px solid #ddd;
-		}
-		.atomic-jamstack-meta-box .description {
-			font-style: normal;
-		}
-		</style>
 		<?php
 	}
 
