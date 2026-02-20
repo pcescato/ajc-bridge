@@ -31,19 +31,7 @@ jobs:
         run: mkdir -p ajc-bridge
       
       - name: Copy plugin files
-        run: |
-          rsync -av --progress . ajc-bridge/ \
-            --exclude=.git \
-            --exclude=.github \
-            --exclude=.gitignore \
-            --exclude=.gitattributes \
-            --exclude=.distignore \
-            --exclude=node_modules \
-            --exclude=tests \
-            --exclude=docs \
-            --exclude=AGENTS.md \
-            --exclude=README.md \
-            --exclude=ajc-bridge
+        run: rsync -av ./ ajc-bridge/ --exclude-from=.distignore
       
       - name: Create release archive
         run: zip -r ajc-bridge.zip ajc-bridge/
