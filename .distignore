@@ -1,6 +1,7 @@
 .git
 .github
 .gitignore
+.distignore
 node_modules
 .vscode
 .idea
@@ -35,3 +36,6 @@ vendor/**/readme*
 vendor/**/composer.json
 vendor/**/composer.lock
 vendor/**/.editorconfig
+AGENTS.md
+README.md
+docs/
