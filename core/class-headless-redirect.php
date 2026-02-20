@@ -152,57 +152,58 @@ class Headless_Redirect {
 	}
 
 	/**
-	 * Get CSS for headless notice page
+	 * Get CSS for headless notice page (including <style> tags)
 	 *
-	 * @return string CSS styles.
+	 * @return string CSS wrapped in style tags.
 	 */
 	private static function get_headless_notice_css(): string {
 		return <<<'CSS'
-			body {
-				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
-				max-width: 600px;
-				margin: 100px auto;
-				padding: 20px;
-				text-align: center;
-				color: #333;
-				line-height: 1.6;
-			}
-			h1 {
-				color: #0073aa;
-				margin-bottom: 20px;
-			}
-			p {
-				margin: 15px 0;
-				color: #666;
-			}
-			code {
-				background: #f5f5f5;
-				padding: 3px 8px;
-				border-radius: 3px;
-				font-family: 'Courier New', monospace;
-				font-size: 0.9em;
-			}
-			.notice {
-				background: #fff8e5;
-				border-left: 4px solid #ffba00;
-				padding: 15px;
-				margin: 30px 0;
-			}
-			.button {
-				display: inline-block;
-				background: #0073aa;
-				color: white;
-				padding: 10px 20px;
-				text-decoration: none;
-				border-radius: 3px;
-				margin-top: 20px;
-			}
-			.button:hover {
-				background: #005a87;
-			}
+		<style>
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+			max-width: 600px;
+			margin: 100px auto;
+			padding: 20px;
+			text-align: center;
+			color: #333;
+			line-height: 1.6;
+		}
+		h1 {
+			color: #0073aa;
+			margin-bottom: 20px;
+		}
+		p {
+			margin: 15px 0;
+			color: #666;
+		}
+		code {
+			background: #f5f5f5;
+			padding: 3px 8px;
+			border-radius: 3px;
+			font-family: 'Courier New', monospace;
+			font-size: 0.9em;
+		}
+		.notice {
+			background: #fff8e5;
+			border-left: 4px solid #ffba00;
+			padding: 15px;
+			margin: 30px 0;
+		}
+		.button {
+			display: inline-block;
+			background: #0073aa;
+			color: white;
+			padding: 10px 20px;
+			text-decoration: none;
+			border-radius: 3px;
+			margin-top: 20px;
+		}
+		.button:hover {
+			background: #005a87;
+		}
+		</style>
 CSS;
 	}
-
 	/**
 	 * Show headless notice page
 	 *
@@ -225,9 +226,7 @@ CSS;
 			<meta name="robots" content="noindex, nofollow">
 			<meta name="viewport" content="width=device-width, initial-scale=1">
 			<title><?php esc_html_e( 'Headless WordPress', 'ajc-bridge' ); ?></title>
-			<style>
 			<?php echo self::get_headless_notice_css(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-			</style>
 		</head>
 		<body>
 			<h1><?php esc_html_e( 'Headless WordPress Installation', 'ajc-bridge' ); ?></h1>
