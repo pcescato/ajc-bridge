@@ -39,3 +39,4 @@ vendor/**/.editorconfig
 AGENTS.md
 README.md
 docs/
+*.sh
