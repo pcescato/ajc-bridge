@@ -157,52 +157,17 @@ class Headless_Redirect {
 	 * @return string CSS wrapped in style tags.
 	 */
 	private static function get_headless_notice_css(): string {
-		return <<<'CSS'
-		<style>
-		body {
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
-			max-width: 600px;
-			margin: 100px auto;
-			padding: 20px;
-			text-align: center;
-			color: #333;
-			line-height: 1.6;
-		}
-		h1 {
-			color: #0073aa;
-			margin-bottom: 20px;
-		}
-		p {
-			margin: 15px 0;
-			color: #666;
-		}
-		code {
-			background: #f5f5f5;
-			padding: 3px 8px;
-			border-radius: 3px;
-			font-family: 'Courier New', monospace;
-			font-size: 0.9em;
-		}
-		.notice {
-			background: #fff8e5;
-			border-left: 4px solid #ffba00;
-			padding: 15px;
-			margin: 30px 0;
-		}
-		.button {
-			display: inline-block;
-			background: #0073aa;
-			color: white;
-			padding: 10px 20px;
-			text-decoration: none;
-			border-radius: 3px;
-			margin-top: 20px;
-		}
-		.button:hover {
-			background: #005a87;
-		}
-		</style>
-CSS;
+		$css  = '<style>' . PHP_EOL;
+		$css .= 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif; max-width: 600px; margin: 100px auto; padding: 20px; text-align: center; color: #333; line-height: 1.6; }' . PHP_EOL;
+		$css .= 'h1 { color: #0073aa; margin-bottom: 20px; }' . PHP_EOL;
+		$css .= 'p { margin: 15px 0; color: #666; }' . PHP_EOL;
+		$css .= 'code { background: #f5f5f5; padding: 3px 8px; border-radius: 3px; font-family: "Courier New", monospace; font-size: 0.9em; }' . PHP_EOL;
+		$css .= '.notice { background: #fff8e5; border-left: 4px solid #ffba00; padding: 15px; margin: 30px 0; }' . PHP_EOL;
+		$css .= '.button { display: inline-block; background: #0073aa; color: white; padding: 10px 20px; text-decoration: none; border-radius: 3px; margin-top: 20px; }' . PHP_EOL;
+		$css .= '.button:hover { background: #005a87; }' . PHP_EOL;
+		$css .= '</style>' . PHP_EOL;
+
+		return $css;
 	}
 	/**
 	 * Show headless notice page
