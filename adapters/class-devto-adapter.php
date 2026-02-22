@@ -342,8 +342,28 @@ class DevTo_Adapter implements Adapter_Interface {
 		// Convert inline code: <code>text</code> → `text`
 		$html = preg_replace( '/<code>(.*?)<\/code>/i', '`$1`', $html );
 
-		// Convert blockquotes: <blockquote>text</blockquote> → > text
-		$html = preg_replace( '/<blockquote[^>]*>(.*?)<\/blockquote>/is', "\n> $1\n", $html );
+		// Convert blockquotes: handle inner paragraphs and preserve '>' at line start
+		$html = preg_replace_callback(
+			'/<blockquote[^>]*>(.*?)<\/blockquote>/is',
+			function ( $matches ) {
+				$inner = $matches[1];
+				// Normalize paragraph boundaries inside blockquote to double newlines
+				$inner = preg_replace( '/<\/p>\s*<p[^>]*>/i', "\n\n", $inner );
+				// Replace br with newline
+				$inner = str_replace( array('<br>', '<br/>', '<br />'), "\n", $inner );
+				// Strip remaining tags to get plain text
+				$inner = wp_strip_all_tags( $inner );
+				$inner = trim( $inner );
+				// Prefix each non-empty line with '> '
+				$lines = preg_split( "/\r?\n/", $inner );
+				$prefixed = array_map( function( $line ) {
+					$line = trim( $line );
+					return $line !== '' ? ("> " . $line) : '>';
+				}, $lines );
+				return "\n" . implode( "\n", $prefixed ) . "\n";
+			},
+			$html
+		);
 
 		// Remove paragraph tags
 		$html = preg_replace( '/<\/?p[^>]*>/i', "\n\n", $html );
