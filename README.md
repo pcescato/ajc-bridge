@@ -3,7 +3,7 @@
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.1%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![Version](https://img.shields.io/badge/Version-1.2.0-orange.svg)](https://github.com/pcescato/ajc-bridge/releases)
+[![Version](https://img.shields.io/badge/Version-1.3.0-orange.svg)](https://github.com/pcescato/ajc-bridge/releases)
 [![Publishing Strategies](https://img.shields.io/badge/publishing-5%20strategies-blue)](https://img.shields.io/badge/publishing-5%20strategies-blue)
 
 **A production-grade WordPress plugin that bridges your content to modern Jamstack platforms.** Take complete control over where and how your content is published with 5 distinct publishing strategies—from traditional WordPress to fully headless architecture.
