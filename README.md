@@ -1101,7 +1101,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 ## 🗺️ Roadmap
 
-### Version 1.3.0 (Planned)
+### Version 1.5.0 (Planned)
 
 - [ ] WP-CLI commands (`wp ajc-bridge sync`, `wp ajc-bridge status`)
 - [ ] Improved error recovery with automatic retry
@@ -1125,7 +1125,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 ## 📊 Stats & Info
 
-- **Current Version**: 1.2.0
+- **Current Version**: 1.3.0
 - **WordPress Version**: 6.9+
 - **PHP Version**: 8.1+
 - **Lines of Code**: ~5,000+ PHP
