@@ -6,7 +6,8 @@
 [![Version](https://img.shields.io/badge/Version-1.3.0-orange.svg)](https://github.com/pcescato/ajc-bridge/releases)
 [![Publishing Strategies](https://img.shields.io/badge/architecture-multi--channel%20publishing-46A0C7)](https://img.shields.io/badge/architecture-multi--channel%20publishing-46A0C7)
 
-**A production-grade WordPress plugin that bridges your content to modern Jamstack platforms.** Take complete control over where and how your content is published with 5 distinct publishing strategies—from traditional WordPress to fully headless architecture.
+**A multi-channel publishing architecture built as a production-grade WordPress plugin.**
+Write once, then choose how your content is distributed through five distinct publishing strategies — from classic WordPress to fully decoupled deployments.
 
 ---
 
