@@ -7,6 +7,7 @@
 [![Publishing Strategies](https://img.shields.io/badge/architecture-multi--channel%20publishing-46A0C7)](https://img.shields.io/badge/architecture-multi--channel%20publishing-46A0C7)
 
 **A multi-channel publishing architecture built as a production-grade WordPress plugin.**
+
 Write once, then choose how your content is distributed through five distinct publishing strategies — from classic WordPress to fully decoupled deployments.
 
 ---
