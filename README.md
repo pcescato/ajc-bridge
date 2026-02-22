@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Version](https://img.shields.io/badge/Version-1.3.0-orange.svg)](https://github.com/pcescato/ajc-bridge/releases)
 [![Publishing Strategies](https://img.shields.io/badge/architecture-multi--channel%20publishing-46A0C7)](https://img.shields.io/badge/architecture-multi--channel%20publishing-46A0C7)
+[![Works with GitHub](https://img.shields.io/badge/Works%20with-GitHub-181717?logo=github)](https://img.shields.io/badge/Works%20with-GitHub-181717?logo=github)
 
 **A multi-channel publishing architecture built as a production-grade WordPress plugin.**
 
@@ -1145,3 +1146,7 @@ If you find this plugin helpful, please consider:
 - 🤝 Contributing code or documentation
 
 Happy publishing! 📚✨
+
+---
+
+This project integrates with GitHub and is part of the GitHub Developer Program.
