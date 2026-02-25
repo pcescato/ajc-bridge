@@ -322,21 +322,38 @@ class Sync_Runner {
          * - API failure → fallback safely
          */
 
-        $published_status = false; // default new article
+        $published_status = null; // default = preserve state
 
-if ( $existing_article_id ) {
+if (!$existing_article_id) {
+    $published_status = false; // new article = draft
+} else {
 
     Logger::info('Fetching Dev.to publication status', [
         'post_id'    => $post_id,
         'article_id' => $existing_article_id,
     ]);
 
-    $current_article = $devto_api->get_article( $existing_article_id );
+    $current_article = $devto_api->get_article($existing_article_id);
 
-    if ( is_wp_error( $current_article ) ) {
+    if (!is_wp_error($current_article)) {
+
+        $timestamp = $current_article['published_timestamp'] ?? null;
+
+        if (!empty($timestamp)) {
+            $published_status = true;
+        } else {
+            $published_status = false;
+        }
+
+        Logger::info('Publication resolved from timestamp', [
+            'timestamp' => $timestamp,
+            'resolved'  => $published_status,
+        ]);
+
+    } else {
 
         Logger::warning(
-            'Dev.to fetch failed, defaulting to draft',
+            'Dev.to GET failed — preserving remote publication state',
             [
                 'post_id'    => $post_id,
                 'article_id' => $existing_article_id,
@@ -344,23 +361,8 @@ if ( $existing_article_id ) {
             ]
         );
 
-        $published_status = false;
-
-    } else {
-
-        $timestamp = $current_article['published_timestamp'] ?? null;
-
-        $published_status = ! empty( $timestamp );
-
-        Logger::info(
-            'Dev.to publication resolved from timestamp',
-            [
-                'post_id'             => $post_id,
-                'article_id'          => $existing_article_id,
-                'published_timestamp' => $timestamp,
-                'resolved_published'  => $published_status,
-            ]
-        );
+        // CRUCIAL : NE PAS TOUCHER AU STATUS
+        $published_status = null;
     }
 }
 

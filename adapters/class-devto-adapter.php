@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace AjcBridge\Adapters;
 
+use AjcBridge\Core\Logger;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	die( 'Direct access not permitted.' );
 }
@@ -54,9 +56,18 @@ class DevTo_Adapter implements Adapter_Interface {
 	 *
 	 * @param bool|null $published Published status. Null preserves existing Dev.to status.
 	 */
-	public function set_published_status( ?bool $published ): void {
+/*	public function set_published_status( ?bool $published ): void {
 		$this->published = $published;
-	}
+	}*/
+	
+	
+	public function set_published_status(?bool $published): void {
+    Logger::info('ADAPTER RECEIVED PUBLISHED', [
+        'value' => $published,
+        'type'  => gettype($published),
+    ]);
+    $this->published = $published;
+}
 
 	/**
 	 * Convert WordPress post to Dev.to Markdown format
@@ -131,6 +142,8 @@ class DevTo_Adapter implements Adapter_Interface {
 		if ( $series ) {
 			$front_matter['series'] = $series;
 		}
+		
+		Logger::info('FRONTMATTER BEFORE SEND', $front_matter);
 
 		return $front_matter;
 	}

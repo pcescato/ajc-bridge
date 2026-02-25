@@ -1,333 +1,354 @@
 <?php
 /**
- * Dev.to API Client
- *
- * @package AtomicJamstack
- */
+* Dev.to API Client
+*
+* @package AtomicJamstack
+*/
 
-declare(strict_types=1);
+declare( strict_types = 1 );
 
 namespace AjcBridge\Core;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	die( 'Direct access not permitted.' );
+    die( 'Direct access not permitted.' );
 }
 
 /**
- * Dev.to (Forem) API client
- *
- * Handles communication with Dev.to REST API for article publishing.
- *
- * API Documentation: https://developers.forem.com/api/v1
- */
+* Dev.to ( Forem ) API client
+*
+* Handles communication with Dev.to REST API for article publishing.
+*
+* API Documentation: https://developers.forem.com/api/v1
+*/
+
 class DevTo_API {
 
-	/**
-	 * API base URL
-	 */
-	private const API_BASE = 'https://dev.to/api';
+    /**
+    * API base URL
+    */
+    private const API_BASE = 'https://dev.to/api';
 
-	/**
-	 * API key for authentication
-	 *
-	 * @var string
-	 */
-	private string $api_key;
+    /**
+    * API key for authentication
+    *
+    * @var string
+    */
+    private string $api_key;
 
-	/**
-	 * Constructor
-	 *
-	 * Loads API key from plugin settings.
-	 */
-	public function __construct() {
-		$settings = get_option( 'ajc_bridge_settings', array() );
-		$this->api_key = $settings['devto_api_key'] ?? '';
-	}
+    /**
+    * Constructor
+    *
+    * Loads API key from plugin settings.
+    */
 
-	/**
-	 * Publish or update article on Dev.to
-	 *
-	 * Creates new article (POST) or updates existing (PUT) based on article_id.
-	 *
-	 * @param string     $markdown        Complete markdown content with front matter.
-	 * @param int|null   $article_id      Optional. Existing article ID for updates.
-	 * @param array|null $current_article Optional. Current article state from Dev.to (for updates).
-	 *
-	 * @return array|\WP_Error Article data on success, WP_Error on failure.
-	 */
-	public function publish_article( string $markdown, ?int $article_id = null, ?array $current_article = null ): array|\WP_Error {
-		if ( empty( $this->api_key ) ) {
-			return new \WP_Error(
-				'missing_api_key',
-				__( 'Dev.to API key is not configured.', 'ajc-bridge' )
-			);
-		}
+    public function __construct() {
+        $settings = get_option( 'ajc_bridge_settings', array() );
+        $this->api_key = $settings[ 'devto_api_key' ] ?? '';
+    }
 
-		$method = $article_id ? 'PUT' : 'POST';
-		$url    = $article_id 
-			? self::API_BASE . '/articles/' . $article_id 
-			: self::API_BASE . '/articles';
+    /**
+    * Publish or update article on Dev.to
+    *
+    * Creates new article ( POST ) or updates existing ( PUT ) based on article_id.
+    *
+    * @param string     $markdown        Complete markdown content with front matter.
+    * @param int|null   $article_id      Optional. Existing article ID for updates.
+    * @param array|null $current_article Optional. Current article state from Dev.to ( for updates ).
+    *
+    * @return array|\WP_Error Article data on success, WP_Error on failure.
+    */
 
-		$body = array(
-			'article' => array(
-				'body_markdown' => $markdown,
-			),
-		);
+    public function publish_article( string $markdown, ?int $article_id = null, ?array $current_article = null ): array|\WP_Error {
+        if ( empty( $this->api_key ) ) {
+            return new \WP_Error(
+                'missing_api_key',
+                __( 'Dev.to API key is not configured.', 'ajc-bridge' )
+            );
+        }
 
-		// NOTE: Published status is primarily controlled by front matter in the markdown.
-		// We also include it in the API payload for consistency, though front matter takes precedence.
-		if ( $article_id && is_array( $current_article ) ) {
-			$is_published = self::is_article_published( $current_article );
-			$body['article']['published'] = $is_published;
-		}
+        $method = $article_id ? 'PUT' : 'POST';
+        $url    = $article_id
+        ? self::API_BASE . '/articles/' . $article_id
+        : self::API_BASE . '/articles';
 
-		$response = wp_remote_request(
-			$url,
-			array(
-				'method'  => $method,
-				'headers' => array(
-					'api-key'      => $this->api_key,
-					'Content-Type' => 'application/json',
-				),
-				'body'    => wp_json_encode( $body ),
-				'timeout' => 30,
-			)
-		);
+        $body = array(
+            'article' => array(
+                'body_markdown' => $markdown,
+            ),
+        );
 
-		// Check for network errors
-		if ( is_wp_error( $response ) ) {
-			Logger::error(
-				'Dev.to API request failed',
-				array(
-					'error'   => $response->get_error_message(),
-					'method'  => $method,
-					'url'     => $url,
-				)
-			);
-			return $response;
-		}
+        // NOTE: Published status is primarily controlled by front matter in the markdown.
+        // We also include it in the API payload for consistency, though front matter takes precedence.
+        if ( $article_id && is_array( $current_article ) ) {
+            $is_published = self::is_article_published( $current_article );
+            $body[ 'article' ][ 'published' ] = $is_published;
+        }
 
-		$http_code = wp_remote_retrieve_response_code( $response );
-		$body_data = wp_remote_retrieve_body( $response );
-		$data      = json_decode( $body_data, true );
+        $response = wp_remote_request(
+            $url,
+            array(
+                'method'  => $method,
+                'headers' => array(
+                    'api-key'      => $this->api_key,
+                    'Content-Type' => 'application/json',
+                ),
+                'body'    => wp_json_encode( $body ),
+                'timeout' => 30,
+            )
+        );
 
-		// Log response for debugging
-		Logger::info(
-			'Dev.to API response',
-			array(
-				'http_code' => $http_code,
-				'method'    => $method,
-				'url'       => $url,
-				'success'   => in_array( $http_code, array( 200, 201 ), true ),
-			)
-		);
+        // Check for network errors
+        if ( is_wp_error( $response ) ) {
+            Logger::error(
+                'Dev.to API request failed',
+                array(
+                    'error'   => $response->get_error_message(),
+                    'method'  => $method,
+                    'url'     => $url,
+                )
+            );
+            return $response;
+        }
 
-		// Check HTTP status
-		if ( ! in_array( $http_code, array( 200, 201 ), true ) ) {
-			$error_message = $this->extract_error_message( $data, $http_code );
-			
-			Logger::error(
-				'Dev.to API error response',
-				array(
-					'http_code' => $http_code,
-					'error'     => $error_message,
-					'response'  => $body_data,
-				)
-			);
+        $http_code = wp_remote_retrieve_response_code( $response );
+        $body_data = wp_remote_retrieve_body( $response );
+        $data      = json_decode( $body_data, true );
 
-			return new \WP_Error(
-				'api_error',
-				sprintf(
-					/* translators: %1$s: HTTP code, %2$s: Error message */
-					__( 'Dev.to API error (HTTP %1$s): %2$s', 'ajc-bridge' ),
-					$http_code,
-					$error_message
-				)
-			);
-		}
+        // Log response for debugging
+        Logger::info(
+            'Dev.to API response',
+            array(
+                'http_code' => $http_code,
+                'method'    => $method,
+                'url'       => $url,
+                'success'   => in_array( $http_code, array( 200, 201 ), true ),
+            )
+        );
 
-		return $data ?? array();
-	}
+        Logger::info( 'DEVTO PAYLOAD SENT', [
+            'markdown' => $markdown
+        ] );
 
-	/**
-	 * Create new article on Dev.to
-	 *
-	 * @param string $markdown Complete markdown content with front matter.
-	 *
-	 * @return array|\WP_Error Article data with 'id' on success, WP_Error on failure.
-	 */
-	public function create_article( string $markdown ): array|\WP_Error {
-		Logger::info( 'Creating new Dev.to article', array() );
-		
-		$result = $this->publish_article( $markdown, null );
-		
-		if ( is_wp_error( $result ) ) {
-			return $result;
-		}
-		
-		// Ensure 'id' is present in response
-		if ( ! isset( $result['id'] ) ) {
-			Logger::error( 'Dev.to API response missing article ID', array( 'response' => $result ) );
-			return new \WP_Error(
-				'missing_id',
-				__( 'Dev.to API response missing article ID', 'ajc-bridge' )
-			);
-		}
-		
-		Logger::success(
-			'Dev.to article created',
-			array(
-				'article_id' => $result['id'],
-				'url'        => $result['url'] ?? '',
-			)
-		);
-		
-		return $result;
-	}
+        // Check HTTP status
+        if ( ! in_array( $http_code, array( 200, 201 ), true ) ) {
+            $error_message = $this->extract_error_message( $data, $http_code );
 
-	/**
-	 * Update existing article on Dev.to
-	 *
-	 * Preserves the published status from Dev.to to avoid overriding it.
-	 *
-	 * @param int    $article_id Dev.to article ID.
-	 * @param string $markdown   Complete markdown content with front matter.
-	 *
-	 * @return array|\WP_Error Article data on success, WP_Error on failure.
-	 */
-	public function update_article( int $article_id, string $markdown ): array|\WP_Error {
-		Logger::info(
-			'Updating Dev.to article',
-			array( 'article_id' => $article_id )
-		);
-		
-		// Fetch current article state to preserve published status
-		$current_article = $this->get_article( $article_id );
-		$article_payload = null;
-		
-		if ( is_wp_error( $current_article ) ) {
-			Logger::warning(
-				'Could not fetch current article state, proceeding without preserving published status',
-				array(
-					'article_id' => $article_id,
-					'error'      => $current_article->get_error_message(),
-				)
-			);
-			// Continue anyway - markdown front matter will control published status
-		} else {
-			$article_payload = $current_article;
-			$is_published = self::is_article_published( $current_article );
-			Logger::info(
-				'Current article state fetched',
-				array(
-					'article_id'         => $article_id,
-					'published'          => $is_published,
-					'published_flag'     => $current_article['published'] ?? null,
-					'published_timestamp' => $current_article['published_timestamp'] ?? null,
-				)
-			);
-		}
-		
-		$result = $this->publish_article( $markdown, $article_id, $article_payload );
-		
-		if ( is_wp_error( $result ) ) {
-			return $result;
-		}
-		
-		Logger::success(
-			'Dev.to article updated',
-			array(
-				'article_id' => $article_id,
-				'url'        => $result['url'] ?? '',
-			)
-		);
-		
-		return $result;
-	}
+            Logger::error(
+                'Dev.to API error response',
+                array(
+                    'http_code' => $http_code,
+                    'error'     => $error_message,
+                    'response'  => $body_data,
+                )
+            );
 
-	/**
-	 * Get single article by ID
-	 *
-	 * Fetches current state of a specific article from Dev.to.
-	 *
-	 * @param int $article_id Dev.to article ID.
-	 *
-	 * @return array|\WP_Error Article data on success, WP_Error on failure.
-	 */
-	public function get_article( int $article_id ): array|\WP_Error {
-		if ( empty( $this->api_key ) ) {
-			return new \WP_Error(
-				'missing_api_key',
-				__( 'Dev.to API key is required.', 'ajc-bridge' )
-			);
-		}
+            return new \WP_Error(
+                'api_error',
+                sprintf(
+                    /* translators: %1$s: HTTP code, %2$s: Error message */
+                    __( 'Dev.to API error (HTTP %1$s): %2$s', 'ajc-bridge' ),
+                    $http_code,
+                    $error_message
+                )
+            );
+        }
 
-		$url = self::API_BASE . '/articles/' . $article_id;
+        return $data ?? array();
+    }
 
-		$response = wp_remote_get(
-			$url,
-			array(
-				'headers' => array(
-					'api-key' => $this->api_key,
-				),
-				'timeout' => 15,
-			)
-		);
+    /**
+    * Create new article on Dev.to
+    *
+    * @param string $markdown Complete markdown content with front matter.
+    *
+    * @return array|\WP_Error Article data with 'id' on success, WP_Error on failure.
+    */
 
-		if ( is_wp_error( $response ) ) {
-			return $response;
-		}
+    public function create_article( string $markdown ): array|\WP_Error {
+        Logger::info( 'Creating new Dev.to article', array() );
 
-		$http_code = wp_remote_retrieve_response_code( $response );
+        $result = $this->publish_article( $markdown, null );
 
-		if ( 200 !== $http_code ) {
-			$body_data = wp_remote_retrieve_body( $response );
-			$data      = json_decode( $body_data, true );
-			$error_message = $this->extract_error_message( $data, $http_code );
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
 
-			return new \WP_Error(
-				'api_error',
-				sprintf(
-					/* translators: %1$s: Article ID, %2$s: HTTP code, %3$s: Error message */
-					__( 'Failed to fetch article %1$s (HTTP %2$s): %3$s', 'ajc-bridge' ),
-					$article_id,
-					$http_code,
-					$error_message
-				),
-				array(
-					'status_code' => $http_code,
-				)
-			);
-		}
+        // Ensure 'id' is present in response
+        if ( ! isset( $result[ 'id' ] ) ) {
+            Logger::error( 'Dev.to API response missing article ID', array( 'response' => $result ) );
+            return new \WP_Error(
+                'missing_id',
+                __( 'Dev.to API response missing article ID', 'ajc-bridge' )
+            );
+        }
 
-		$body_data = wp_remote_retrieve_body( $response );
-		$data      = json_decode( $body_data, true );
+        Logger::success(
+            'Dev.to article created',
+            array(
+                'article_id' => $result[ 'id' ],
+                'url'        => $result[ 'url' ] ?? '',
+            )
+        );
 
-		return is_array( $data ) ? $data : array();
-	}
+        return $result;
+    }
 
-	/**
-	 * Determine if an article is published on Dev.to.
-	 *
-	 * Dev.to/Forem responses can expose publication state via one of several fields
-	 * depending on endpoint and API version.
-	 *
-	 * @param array<string, mixed> $article Dev.to article payload.
-	 *
-	 * @return bool
-	 */
-	public static function is_article_published( array $article ): bool {
-		if ( array_key_exists( 'published', $article ) ) {
-			return filter_var( $article['published'], FILTER_VALIDATE_BOOLEAN );
-		}
+    /**
+    * Update existing article on Dev.to
+    *
+    * Preserves the published status from Dev.to to avoid overriding it.
+    *
+    * @param int    $article_id Dev.to article ID.
+    * @param string $markdown   Complete markdown content with front matter.
+    *
+    * @return array|\WP_Error Article data on success, WP_Error on failure.
+    */
 
-		return ! empty( $article['published_timestamp'] ) || ! empty( $article['published_at'] );
-	}
+    public function update_article( int $article_id, string $markdown ): array|\WP_Error {
+        Logger::info(
+            'Updating Dev.to article',
+            array( 'article_id' => $article_id )
+        );
 
-	/**
-	 * Test API connection
-	 *
-	 * Verifies API key by fetching user's published articles.
+        // Fetch current article state to preserve published status
+        $current_article = $this->get_article( $article_id );
+        $article_payload = null;
+
+        if ( is_wp_error( $current_article ) ) {
+            Logger::warning(
+                'Could not fetch current article state, proceeding without preserving published status',
+                array(
+                    'article_id' => $article_id,
+                    'error'      => $current_article->get_error_message(),
+                )
+            );
+            // Continue anyway - markdown front matter will control published status
+        } else {
+            $article_payload = $current_article;
+            $is_published = self::is_article_published( $current_article );
+            Logger::info(
+                'Current article state fetched',
+                array(
+                    'article_id'         => $article_id,
+                    'published'          => $is_published,
+                    'published_flag'     => $current_article[ 'published' ] ?? null,
+                    'published_timestamp' => $current_article[ 'published_timestamp' ] ?? null,
+                )
+            );
+        }
+
+        $result = $this->publish_article( $markdown, $article_id, $article_payload );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        Logger::success(
+            'Dev.to article updated',
+            array(
+                'article_id' => $article_id,
+                'url'        => $result[ 'url' ] ?? '',
+            )
+        );
+
+        return $result;
+    }
+
+    /**
+    * Get single article by ID
+    *
+    * Fetches current state of a specific article from Dev.to.
+    *
+    * @param int $article_id Dev.to article ID.
+    *
+    * @return array|\WP_Error Article data on success, WP_Error on failure.
+    */
+
+    public function get_article( int $article_id ): array|\WP_Error {
+
+        if ( empty( $this->api_key ) ) {
+            return new \WP_Error(
+                'missing_api_key',
+                __( 'Dev.to API key is required.', 'ajc-bridge' )
+            );
+        }
+
+        $url = self::API_BASE . '/articles/' . $article_id;
+
+        Logger::info( 'DEVTO API CONFIG DATAS', [
+            'base_url' => $url ?? null,
+            'token_set' => !empty( $this->api_key ),
+        ] );
+
+        $response = wp_remote_get(
+            $url,
+            array(
+                'headers' => array(
+                    'api-key' => $this->api_key,
+                ),
+                'timeout' => 15,
+            )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
+
+        $http_code = wp_remote_retrieve_response_code( $response );
+
+        if ( 200 !== $http_code ) {
+            $body_data = wp_remote_retrieve_body( $response );
+            $data      = json_decode( $body_data, true );
+            $error_message = $this->extract_error_message( $data, $http_code );
+
+            return new \WP_Error(
+                'api_error',
+                sprintf(
+                    /* translators: %1$s: Article ID, %2$s: HTTP code, %3$s: Error message */
+                    __( 'Failed to fetch article %1$s (HTTP %2$s): %3$s', 'ajc-bridge' ),
+                    $article_id,
+                    $http_code,
+                    $error_message
+                ),
+                array(
+                    'status_code' => $http_code,
+                )
+            );
+        }
+
+        $body_data = wp_remote_retrieve_body( $response );
+        $data      = json_decode( $body_data, true );
+
+        Logger::info( 'DEVTO REQUEST', [
+            'url' => $url,
+            'headers' => $headers,
+        ] );
+
+        return is_array( $data ) ? $data : array();
+    }
+
+    /**
+    * Determine if an article is published on Dev.to.
+    *
+    * Dev.to/Forem responses can expose publication state via one of several fields
+    * depending on endpoint and API version.
+    *
+    * @param array<string, mixed> $article Dev.to article payload.
+    *
+    * @return bool
+    */
+    public static function is_article_published( array $article ): bool {
+        if ( array_key_exists( 'published', $article ) ) {
+            return filter_var( $article[ 'published' ], FILTER_VALIDATE_BOOLEAN );
+        }
+
+        return ! empty( $article[ 'published_timestamp' ] ) || ! empty( $article[ 'published_at' ] );
+    }
+
+    /**
+    * Test API connection
+    *
+    * Verifies API key by fetching user's published articles.
 	 *
 	 * @return bool|\WP_Error True on success, WP_Error on failure.
 	 */
@@ -380,7 +401,7 @@ class DevTo_API {
 				'connection_failed',
 				sprintf(
 					/* translators: %1$s: HTTP code, %2$s: Error message */
-					__( 'Connection failed (HTTP %1$s): %2$s', 'ajc-bridge' ),
+					__( 'Connection failed ( HTTP %1$s ): %2$s', 'ajc-bridge' ),
 					$http_code,
 					$error_message
 				)
@@ -438,65 +459,66 @@ class DevTo_API {
 
 	/**
 	 * Get user's published articles
-	 *
-	 * Fetches list of articles for debugging and management.
-	 *
-	 * @param int $page     Page number (default 1).
-	 * @param int $per_page Articles per page (default 30, max 1000).
-	 *
-	 * @return array|\WP_Error Array of articles or WP_Error.
-	 */
-	public function get_articles( int $page = 1, int $per_page = 30 ): array|\WP_Error {
-		if ( empty( $this->api_key ) ) {
-			return new \WP_Error(
-				'missing_api_key',
-				__( 'Dev.to API key is required.', 'ajc-bridge' )
-			);
-		}
+    *
+    * Fetches list of articles for debugging and management.
+    *
+    * @param int $page     Page number ( default 1 ).
+    * @param int $per_page Articles per page ( default 30, max 1000 ).
+    *
+    * @return array|\WP_Error Array of articles or WP_Error.
+    */
 
-		$url = add_query_arg(
-			array(
-				'page'     => $page,
-				'per_page' => min( $per_page, 1000 ), // Max 1000 per API docs
-			),
-			self::API_BASE . '/articles/me/published'
-		);
+    public function get_articles( int $page = 1, int $per_page = 30 ): array|\WP_Error {
+        if ( empty( $this->api_key ) ) {
+            return new \WP_Error(
+                'missing_api_key',
+                __( 'Dev.to API key is required.', 'ajc-bridge' )
+            );
+        }
 
-		$response = wp_remote_get(
-			$url,
-			array(
-				'headers' => array(
-					'api-key' => $this->api_key,
-				),
-				'timeout' => 15,
-			)
-		);
+        $url = add_query_arg(
+            array(
+                'page'     => $page,
+                'per_page' => min( $per_page, 1000 ), // Max 1000 per API docs
+            ),
+            self::API_BASE . '/articles/me/published'
+        );
 
-		if ( is_wp_error( $response ) ) {
-			return $response;
-		}
+        $response = wp_remote_get(
+            $url,
+            array(
+                'headers' => array(
+                    'api-key' => $this->api_key,
+                ),
+                'timeout' => 15,
+            )
+        );
 
-		$http_code = wp_remote_retrieve_response_code( $response );
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
 
-		if ( 200 !== $http_code ) {
-			$body_data = wp_remote_retrieve_body( $response );
-			$data      = json_decode( $body_data, true );
-			$error_message = $this->extract_error_message( $data, $http_code );
+        $http_code = wp_remote_retrieve_response_code( $response );
 
-			return new \WP_Error(
-				'api_error',
-				sprintf(
-					/* translators: %1$s: HTTP code, %2$s: Error message */
-					__( 'Failed to fetch articles (HTTP %1$s): %2$s', 'ajc-bridge' ),
-					$http_code,
-					$error_message
-				)
-			);
-		}
+        if ( 200 !== $http_code ) {
+            $body_data = wp_remote_retrieve_body( $response );
+            $data      = json_decode( $body_data, true );
+            $error_message = $this->extract_error_message( $data, $http_code );
 
-		$body_data = wp_remote_retrieve_body( $response );
-		$data      = json_decode( $body_data, true );
+            return new \WP_Error(
+                'api_error',
+                sprintf(
+                    /* translators: %1$s: HTTP code, %2$s: Error message */
+                    __( 'Failed to fetch articles (HTTP %1$s): %2$s', 'ajc-bridge' ),
+                    $http_code,
+                    $error_message
+                )
+            );
+        }
 
-		return is_array( $data ) ? $data : array();
-	}
+        $body_data = wp_remote_retrieve_body( $response );
+        $data      = json_decode( $body_data, true );
+
+        return is_array( $data ) ? $data : array();
+    }
 }
