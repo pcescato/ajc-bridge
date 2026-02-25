@@ -279,181 +279,224 @@ class Sync_Runner {
 	 *
 	 * @return array|\WP_Error Success array with article data or WP_Error.
 	 */
-	private static function sync_to_devto( \WP_Post $post, ?string $canonical_url = null ): array|\WP_Error {
-		$post_id = $post->ID;
-		Logger::info( 'Starting Dev.to sync', array( 'post_id' => $post_id, 'canonical_url' => $canonical_url ) );
+	 
+	 private static function sync_to_devto( \WP_Post $post, ?string $canonical_url = null ): array|\WP_Error {
 
-		// Update status
-		self::update_sync_meta( $post_id, 'processing' );
+    $post_id = $post->ID;
 
-		$sync_result = null;
-		$sync_error  = null;
+    Logger::info(
+        'Starting Dev.to sync',
+        array(
+            'post_id'       => $post_id,
+            'canonical_url' => $canonical_url,
+        )
+    );
 
-		try {
-			// Load interface first, then Dev.to adapter
-			require_once AJC_BRIDGE_PATH . 'adapters/interface-adapter.php';
-			require_once AJC_BRIDGE_PATH . 'adapters/class-devto-adapter.php';
-			$adapter = new \AjcBridge\Adapters\DevTo_Adapter();
+    self::update_sync_meta( $post_id, 'processing' );
 
-			// Set canonical URL if provided
-			if ( $canonical_url ) {
-				$adapter->set_canonical_url( $canonical_url );
-			}
+    $sync_result = null;
+    $sync_error  = null;
 
-			// Initialize API client
-			require_once AJC_BRIDGE_PATH . 'core/class-devto-api.php';
-			$devto_api = new DevTo_API();
+    try {
 
-			// Check if article already exists on Dev.to
-			$existing_article_id = get_post_meta( $post_id, '_ajc_bridge_devto_id', true );
-			$existing_article_id = $existing_article_id ? (int) $existing_article_id : null;
+        require_once AJC_BRIDGE_PATH . 'adapters/interface-adapter.php';
+        require_once AJC_BRIDGE_PATH . 'adapters/class-devto-adapter.php';
 
-			// Fetch current published status from Dev.to if updating.
-			$published_status = false; // Default for new articles (create as draft).
-			if ( $existing_article_id ) {
-				// Start from last known state when available.
-				$stored_published = get_post_meta( $post_id, '_ajc_bridge_devto_published', true );
-				if ( '' === $stored_published ) {
-					$published_status = null;
-				} else {
-					$published_status = filter_var( $stored_published, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE );
-				}
-			// Use null for unknown state to avoid forcing publication changes.
-			$published_status = false; // Default for new articles (create as draft).
-			if ( $existing_article_id ) {
-				$published_status = null;
+        $adapter = new \AjcBridge\Adapters\DevTo_Adapter();
 
-				$current_article = $devto_api->get_article( $existing_article_id );
-				if ( ! is_wp_error( $current_article ) ) {
-					$published_status = DevTo_API::is_article_published( $current_article );
-					Logger::info(
-						'Fetched current Dev.to published status',
-						array(
-							'post_id'             => $post_id,
-							'article_id'          => $existing_article_id,
-							'published'           => $published_status,
-							'published_flag'      => $current_article['published'] ?? null,
-							'published_timestamp' => $current_article['published_timestamp'] ?? null,
-						)
-					);
-				} else {
-					$error_data = $current_article->get_error_data();
-					$status_code = is_array( $error_data ) ? (int) ( $error_data['status_code'] ?? 0 ) : 0;
+        if ( $canonical_url ) {
+            $adapter->set_canonical_url( $canonical_url );
+        }
 
-					if ( 404 === $status_code ) {
-						$published_status = false;
-					}
+        require_once AJC_BRIDGE_PATH . 'core/class-devto-api.php';
+        $devto_api = new DevTo_API();
 
-					Logger::warning(
-						'Could not fetch current Dev.to status; using fallback publication state',
-						array(
-							'post_id'           => $post_id,
-							'article_id'        => $existing_article_id,
-							'api_error'         => $current_article->get_error_message(),
-							'status_code'       => $status_code,
-							'fallback_published' => $published_status,
-					Logger::warning(
-						'Could not fetch current Dev.to status; preserving publication state by omission',
-						array(
-							'post_id'     => $post_id,
-							'article_id'  => $existing_article_id,
-							'api_error'   => $current_article->get_error_message(),
-						)
-					);
-				}
-			}
+        $existing_article_id = get_post_meta( $post_id, '_ajc_bridge_devto_id', true );
+        $existing_article_id = $existing_article_id ? (int) $existing_article_id : null;
 
-			// Set published status in adapter so it's included in front matter
-			$adapter->set_published_status( $published_status );
+        /*
+         * Determine published status logic
+         *
+         * - New article → draft (false)
+         * - Existing article → fetch real remote status
+         * - API failure → fallback safely
+         */
 
-			Logger::info( 'Converting post to Dev.to markdown', array( 'post_id' => $post_id ) );
+        $published_status = false; // default new article
 
-			// Convert to markdown with front matter
-			$markdown = $adapter->convert( $post );
+if ( $existing_article_id ) {
 
-			Logger::info( 'Markdown conversion complete', array( 'post_id' => $post_id, 'length' => strlen( $markdown ) ) );
+    Logger::info('Fetching Dev.to publication status', [
+        'post_id'    => $post_id,
+        'article_id' => $existing_article_id,
+    ]);
 
-			// Create or update article
-			if ( $existing_article_id ) {
-				// Update existing article
-				Logger::info( 'Updating existing Dev.to article', array( 'article_id' => $existing_article_id ) );
-				$result = $devto_api->update_article( $existing_article_id, $markdown );
-			} else {
-				// Create new article
-				Logger::info( 'Creating new Dev.to article', array( 'post_id' => $post_id ) );
-				$result = $devto_api->create_article( $markdown );
-			}
+    $current_article = $devto_api->get_article( $existing_article_id );
 
-			Logger::info( 'Dev.to API call complete', array( 'post_id' => $post_id, 'is_error' => is_wp_error( $result ) ) );
+    if ( is_wp_error( $current_article ) ) {
 
-			if ( is_wp_error( $result ) ) {
-				$sync_error = $result;
-				throw new \Exception( $result->get_error_message() );
-			}
+        Logger::warning(
+            'Dev.to fetch failed, defaulting to draft',
+            [
+                'post_id'    => $post_id,
+                'article_id' => $existing_article_id,
+                'error'      => $current_article->get_error_message(),
+            ]
+        );
 
-			// Store article ID for future updates (if creating new article)
-			if ( isset( $result['id'] ) && ! $existing_article_id ) {
-				update_post_meta( $post_id, '_ajc_bridge_devto_id', $result['id'] );
-				Logger::info( 'Saved Dev.to article ID', array( 'post_id' => $post_id, 'article_id' => $result['id'] ) );
-			}
+        $published_status = false;
 
-			// Store article URL if available
-			if ( isset( $result['url'] ) ) {
-				update_post_meta( $post_id, '_ajc_bridge_devto_url', $result['url'] );
-			}
+    } else {
 
-			// Store last sync timestamp
-			update_post_meta( $post_id, '_ajc_bridge_devto_sync_time', time() );
+        $timestamp = $current_article['published_timestamp'] ?? null;
 
-			// Persist last known published state for fallback during future updates.
-			if ( is_array( $result ) && array_key_exists( 'published', $result ) ) {
-				update_post_meta( $post_id, '_ajc_bridge_devto_published', $result['published'] ? '1' : '0' );
-			} elseif ( is_bool( $published_status ) ) {
-				update_post_meta( $post_id, '_ajc_bridge_devto_published', $published_status ? '1' : '0' );
-			}
+        $published_status = ! empty( $timestamp );
 
-			$sync_result = $result;
+        Logger::info(
+            'Dev.to publication resolved from timestamp',
+            [
+                'post_id'             => $post_id,
+                'article_id'          => $existing_article_id,
+                'published_timestamp' => $timestamp,
+                'resolved_published'  => $published_status,
+            ]
+        );
+    }
+}
 
-			Logger::success(
-				'Dev.to sync complete',
-				array(
-					'post_id'    => $post_id,
-					'article_id' => $result['id'] ?? $existing_article_id,
-					'url'        => $result['url'] ?? null,
-					'action'     => $existing_article_id ? 'updated' : 'created',
-				)
-			);
+        $adapter->set_published_status( $published_status );
 
-		} catch ( \Exception $e ) {
-			$sync_error = new \WP_Error( 'sync_exception', $e->getMessage() );
-			Logger::error(
-				'Dev.to sync exception',
-				array(
-					'post_id'   => $post_id,
-					'exception' => $e->getMessage(),
-				)
-			);
-		} finally {
-			// CRITICAL: Always update status and clear start time in finally block
-			// This ensures cleanup happens even if script crashes
-			if ( $sync_error ) {
-				self::update_sync_meta( $post_id, 'failed', $sync_error->get_error_message() );
-			} else {
-				self::update_sync_meta( $post_id, 'success' );
-				update_post_meta( $post_id, '_ajc_sync_last', time() );
-			}
+        Logger::info(
+            'Converting post to Dev.to markdown',
+            array( 'post_id' => $post_id )
+        );
 
-			// Clear start time
-			delete_post_meta( $post_id, '_ajc_sync_start_time' );
-		}
+        $markdown = $adapter->convert( $post );
 
-		// Return result or error
-		if ( $sync_error ) {
-			return $sync_error;
-		}
+        Logger::info(
+            'Markdown conversion complete',
+            array(
+                'post_id' => $post_id,
+                'length'  => strlen( $markdown ),
+            )
+        );
 
-		return $sync_result ?? array( 'status' => 'success' );
-	}
+        if ( $existing_article_id ) {
+
+            Logger::info(
+                'Updating existing Dev.to article',
+                array( 'article_id' => $existing_article_id )
+            );
+
+            $result = $devto_api->update_article(
+                $existing_article_id,
+                $markdown
+            );
+
+        } else {
+
+            Logger::info(
+                'Creating new Dev.to article',
+                array( 'post_id' => $post_id )
+            );
+
+            $result = $devto_api->create_article( $markdown );
+        }
+
+        if ( is_wp_error( $result ) ) {
+            $sync_error = $result;
+            throw new \Exception( $result->get_error_message() );
+        }
+
+        if ( isset( $result['id'] ) && ! $existing_article_id ) {
+            update_post_meta(
+                $post_id,
+                '_ajc_bridge_devto_id',
+                $result['id']
+            );
+        }
+
+        if ( isset( $result['url'] ) ) {
+            update_post_meta(
+                $post_id,
+                '_ajc_bridge_devto_url',
+                $result['url']
+            );
+        }
+
+        update_post_meta(
+            $post_id,
+            '_ajc_bridge_devto_sync_time',
+            time()
+        );
+
+        if ( is_array( $result ) && array_key_exists( 'published', $result ) ) {
+            update_post_meta(
+                $post_id,
+                '_ajc_bridge_devto_published',
+                $result['published'] ? '1' : '0'
+            );
+        } elseif ( is_bool( $published_status ) ) {
+            update_post_meta(
+                $post_id,
+                '_ajc_bridge_devto_published',
+                $published_status ? '1' : '0'
+            );
+        }
+
+        $sync_result = $result;
+
+        Logger::success(
+            'Dev.to sync complete',
+            array(
+                'post_id'    => $post_id,
+                'article_id' => $result['id'] ?? $existing_article_id,
+                'url'        => $result['url'] ?? null,
+                'action'     => $existing_article_id ? 'updated' : 'created',
+            )
+        );
+
+    } catch ( \Exception $e ) {
+
+        $sync_error = new \WP_Error(
+            'sync_exception',
+            $e->getMessage()
+        );
+
+        Logger::error(
+            'Dev.to sync exception',
+            array(
+                'post_id'   => $post_id,
+                'exception' => $e->getMessage(),
+            )
+        );
+
+    } finally {
+
+        if ( $sync_error ) {
+            self::update_sync_meta(
+                $post_id,
+                'failed'
+            );
+        } else {
+            self::update_sync_meta(
+                $post_id,
+                'success'
+            );
+        }
+
+        delete_post_meta(
+            $post_id,
+            '_ajc_sync_start_time'
+        );
+    }
+
+    if ( $sync_error ) {
+        return $sync_error;
+    }
+
+    return $sync_result ?? array( 'status' => 'success' );
+}
 
 	/**
 	 * Sync post to GitHub (static site generator flow)
