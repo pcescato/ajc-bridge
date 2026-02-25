@@ -89,11 +89,15 @@ class DevTo_API {
             );
         }
 
+        // DO NOT override published state from markdown.
+        // Dev.to uses frontmatter as source of truth.
+        // Sending 'published' in JSON payload can unintentionally unpublish articles.
+        /*
         if ( $article_id && is_array( $current_article ) ) {
             $is_published = self::is_article_published( $current_article );
             $body[ 'article' ][ 'published' ] = $is_published;
         }
-
+        */
         $response = wp_remote_request(
             $url,
             array(
