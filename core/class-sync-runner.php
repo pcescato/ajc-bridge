@@ -309,6 +309,15 @@ class Sync_Runner {
 			$existing_article_id = $existing_article_id ? (int) $existing_article_id : null;
 
 			// Fetch current published status from Dev.to if updating.
+			$published_status = false; // Default for new articles (create as draft).
+			if ( $existing_article_id ) {
+				// Start from last known state when available.
+				$stored_published = get_post_meta( $post_id, '_ajc_bridge_devto_published', true );
+				if ( '' === $stored_published ) {
+					$published_status = null;
+				} else {
+					$published_status = filter_var( $stored_published, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE );
+				}
 			// Use null for unknown state to avoid forcing publication changes.
 			$published_status = false; // Default for new articles (create as draft).
 			if ( $existing_article_id ) {
@@ -328,6 +337,21 @@ class Sync_Runner {
 						)
 					);
 				} else {
+					$error_data = $current_article->get_error_data();
+					$status_code = is_array( $error_data ) ? (int) ( $error_data['status_code'] ?? 0 ) : 0;
+
+					if ( 404 === $status_code ) {
+						$published_status = false;
+					}
+
+					Logger::warning(
+						'Could not fetch current Dev.to status; using fallback publication state',
+						array(
+							'post_id'           => $post_id,
+							'article_id'        => $existing_article_id,
+							'api_error'         => $current_article->get_error_message(),
+							'status_code'       => $status_code,
+							'fallback_published' => $published_status,
 					Logger::warning(
 						'Could not fetch current Dev.to status; preserving publication state by omission',
 						array(
@@ -380,6 +404,13 @@ class Sync_Runner {
 
 			// Store last sync timestamp
 			update_post_meta( $post_id, '_ajc_bridge_devto_sync_time', time() );
+
+			// Persist last known published state for fallback during future updates.
+			if ( is_array( $result ) && array_key_exists( 'published', $result ) ) {
+				update_post_meta( $post_id, '_ajc_bridge_devto_published', $result['published'] ? '1' : '0' );
+			} elseif ( is_bool( $published_status ) ) {
+				update_post_meta( $post_id, '_ajc_bridge_devto_published', $published_status ? '1' : '0' );
+			}
 
 			$sync_result = $result;
 

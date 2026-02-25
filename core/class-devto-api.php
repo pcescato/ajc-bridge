@@ -293,6 +293,9 @@ class DevTo_API {
 					$article_id,
 					$http_code,
 					$error_message
+				),
+				array(
+					'status_code' => $http_code,
 				)
 			);
 		}
