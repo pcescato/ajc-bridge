@@ -17,6 +17,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 	die( 'Direct access not permitted.' );
 }
 
+// Plugin Update Checker
+require __DIR__ . '/vendor/plugin-update-checker/plugin-update-checker.php';
+
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$ajcUpdateChecker = PucFactory::buildUpdateChecker(
+    'https://github.com/pcescato/ajc-bridge/',
+    __FILE__,
+    'ajc-bridge'
+);
+
+$ajcUpdateChecker->setBranch( 'main' );
+$ajcUpdateChecker->getVcsApi()->enableReleaseAssets();
+
 // Plugin constants
 define( 'AJC_BRIDGE_VERSION', '1.2.0' );
 define( 'AJC_BRIDGE_PATH', plugin_dir_path( __FILE__ ) );
