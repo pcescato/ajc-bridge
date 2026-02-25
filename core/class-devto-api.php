@@ -76,9 +76,8 @@ class DevTo_API {
 
 		// NOTE: Published status is primarily controlled by front matter in the markdown.
 		// We also include it in the API payload for consistency, though front matter takes precedence.
-		// Dev.to API doesn't return 'published' field, so we check published_timestamp/published_at
 		if ( $article_id && is_array( $current_article ) ) {
-			$is_published = ! empty( $current_article['published_timestamp'] ) || ! empty( $current_article['published_at'] );
+			$is_published = self::is_article_published( $current_article );
 			$body['article']['published'] = $is_published;
 		}
 
@@ -217,13 +216,13 @@ class DevTo_API {
 			// Continue anyway - markdown front matter will control published status
 		} else {
 			$article_payload = $current_article;
-			// Check published status using published_timestamp field
-			$is_published = ! empty( $current_article['published_timestamp'] ) || ! empty( $current_article['published_at'] );
+			$is_published = self::is_article_published( $current_article );
 			Logger::info(
 				'Current article state fetched',
 				array(
 					'article_id'         => $article_id,
 					'published'          => $is_published,
+					'published_flag'     => $current_article['published'] ?? null,
 					'published_timestamp' => $current_article['published_timestamp'] ?? null,
 				)
 			);
@@ -302,6 +301,24 @@ class DevTo_API {
 		$data      = json_decode( $body_data, true );
 
 		return is_array( $data ) ? $data : array();
+	}
+
+	/**
+	 * Determine if an article is published on Dev.to.
+	 *
+	 * Dev.to/Forem responses can expose publication state via one of several fields
+	 * depending on endpoint and API version.
+	 *
+	 * @param array<string, mixed> $article Dev.to article payload.
+	 *
+	 * @return bool
+	 */
+	public static function is_article_published( array $article ): bool {
+		if ( array_key_exists( 'published', $article ) ) {
+			return filter_var( $article['published'], FILTER_VALIDATE_BOOLEAN );
+		}
+
+		return ! empty( $article['published_timestamp'] ) || ! empty( $article['published_at'] );
 	}
 
 	/**

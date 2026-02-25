@@ -313,15 +313,14 @@ class Sync_Runner {
 			if ( $existing_article_id ) {
 				$current_article = $devto_api->get_article( $existing_article_id );
 				if ( ! is_wp_error( $current_article ) ) {
-					// Dev.to API doesn't have a 'published' field in the response
-					// Instead, check if 'published_timestamp' or 'published_at' exists and is not null
-					$published_status = ! empty( $current_article['published_timestamp'] ) || ! empty( $current_article['published_at'] );
+					$published_status = DevTo_API::is_article_published( $current_article );
 					Logger::info(
 						'Fetched current Dev.to published status',
 						array(
-							'post_id'            => $post_id,
-							'article_id'         => $existing_article_id,
-							'published'          => $published_status,
+							'post_id'             => $post_id,
+							'article_id'          => $existing_article_id,
+							'published'           => $published_status,
+							'published_flag'      => $current_article['published'] ?? null,
 							'published_timestamp' => $current_article['published_timestamp'] ?? null,
 						)
 					);
