@@ -204,6 +204,7 @@ class DevTo_API {
 		
 		// Fetch current article state to preserve published status
 		$current_article = $this->get_article( $article_id );
+		$article_payload = null;
 		
 		if ( is_wp_error( $current_article ) ) {
 			Logger::warning(
@@ -215,6 +216,7 @@ class DevTo_API {
 			);
 			// Continue anyway - markdown front matter will control published status
 		} else {
+			$article_payload = $current_article;
 			// Check published status using published_timestamp field
 			$is_published = ! empty( $current_article['published_timestamp'] ) || ! empty( $current_article['published_at'] );
 			Logger::info(
@@ -227,7 +229,7 @@ class DevTo_API {
 			);
 		}
 		
-		$result = $this->publish_article( $markdown, $article_id, $current_article );
+		$result = $this->publish_article( $markdown, $article_id, $article_payload );
 		
 		if ( is_wp_error( $result ) ) {
 			return $result;
