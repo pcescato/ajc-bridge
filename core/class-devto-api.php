@@ -53,12 +53,12 @@ class DevTo_API {
     *
     * @param string     $markdown        Complete markdown content with front matter.
     * @param int|null   $article_id      Optional. Existing article ID for updates.
-    * @param array|null $current_article Optional. Current article state from Dev.to ( for updates ).
+    * @param array|\WP_Error|null $current_article Optional. Current article state from Dev.to ( for updates ).
     *
     * @return array|\WP_Error Article data on success, WP_Error on failure.
     */
 
-    public function publish_article( string $markdown, ?int $article_id = null, ?array $current_article = null ): array|\WP_Error {
+    public function publish_article( string $markdown, ?int $article_id = null, array|\WP_Error|null $current_article = null ): array|\WP_Error {
         if ( empty( $this->api_key ) ) {
             return new \WP_Error(
                 'missing_api_key',
@@ -79,6 +79,16 @@ class DevTo_API {
 
         // NOTE: Published status is primarily controlled by front matter in the markdown.
         // We also include it in the API payload for consistency, though front matter takes precedence.
+        if ( $article_id && is_wp_error( $current_article ) ) {
+            Logger::warning(
+                'Current article payload is invalid and cannot be used to preserve published status',
+                array(
+                    'article_id' => $article_id,
+                    'error'      => $current_article->get_error_message(),
+                )
+            );
+        }
+
         if ( $article_id && is_array( $current_article ) ) {
             $is_published = self::is_article_published( $current_article );
             $body[ 'article' ][ 'published' ] = $is_published;
