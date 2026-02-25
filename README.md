@@ -1097,7 +1097,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 - **Plugin Homepage**: [https://github.com/pcescato/ajc-bridge](https://github.com/pcescato/ajc-bridge)
 - **Documentation**: This README and [readme.txt](readme.txt)
 - **Issues**: [GitHub Issues](https://github.com/pcescato/ajc-bridge/issues)
-- **WordPress.org**: (Coming soon after approval)
 - **Author**: Pascal CESCATO - [GitHub Profile](https://github.com/pcescato)
 
 ---

@@ -3,7 +3,7 @@
  * Plugin Name: AJC Bridge
  * Plugin URI: https://github.com/pcescato/ajc-bridge
  * Description: Automated WordPress to Hugo publishing system with async GitHub API integration.
- * Version: 1.3.0
+ * Version: 1.3.5
  * Requires at least: 6.9
  * Requires PHP: 8.1
  * Author: Pascal CESCATO
@@ -32,7 +32,7 @@ $ajcUpdateChecker->setBranch( 'main' );
 $ajcUpdateChecker->getVcsApi()->enableReleaseAssets();
 
 // Plugin constants
-define( 'AJC_BRIDGE_VERSION', '1.2.0' );
+define( 'AJC_BRIDGE_VERSION', '1.3.5' );
 define( 'AJC_BRIDGE_PATH', plugin_dir_path( __FILE__ ) );
 define( 'AJC_BRIDGE_URL', plugin_dir_url( __FILE__ ) );
 

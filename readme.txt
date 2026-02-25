@@ -4,7 +4,7 @@ Tags: jamstack, hugo, github, devto, headless
 Requires at least: 6.9
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.3.0
+Stable tag: 1.3.5
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -45,6 +45,7 @@ AJC Bridge is a production-grade WordPress plugin that gives you complete contro
 * **Advanced Logging**: Detailed debug logs with real-time feedback in admin UI
 * **Retry Logic**: Automatic retry with exponential backoff on failures
 * **Backward Compatible**: Automatic migration from older plugin versions
+* **Auto-Updates**: Automatic update notifications and one‑click upgrades via GitHub release checker
 
 **Technical Highlights:**
 
@@ -58,6 +59,7 @@ AJC Bridge is a production-grade WordPress plugin that gives you complete contro
 * Single source of truth: `_ajc_sync_status` post meta
 * WordPress native APIs only (no shell commands)
 * GitHub Trees API for atomic commits (~70% fewer API calls)
+* Plugin update checker for automatic version notifications and dashboard upgrades
 * Smart duplicate prevention
 * Featured image and content image processing
 * Lock mechanism to prevent concurrent syncs
@@ -247,6 +249,11 @@ By default, all settings and sync data are **preserved** when you uninstall the 
 
 == Changelog ==
 
+= 1.3.0 =
+* NEW: Automatic update notifications and one-click upgrades via GitHub-based plugin update checker
+* IMPROVED: Version constant and metadata updated to 1.3.0
+* Documentation: Added release badge and instructions for auto-updates in README
+
 = 1.2.0 =
 * NEW: 5 Publishing Strategies (wordpress_only, wordpress_devto, github_only, devto_only, dual_github_devto)
 * NEW: Per-post dev.to sync control via meta box checkbox
@@ -311,6 +318,9 @@ By default, all settings and sync data are **preserved** when you uninstall the 
 * Page support
 
 == Upgrade Notice ==
+
+= 1.3.0 =
+Adds automatic update support via GitHub release checker. Administrators will now see update notifications in the WordPress dashboard and can install new versions with one click.
 
 = 1.2.0 =
 Major architectural update introducing 5 publishing strategies, dev.to integration, headless WordPress mode, and per-post sync control. Includes automatic migration from previous versions. Recommended for all users seeking flexible publishing workflows.
