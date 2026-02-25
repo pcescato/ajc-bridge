@@ -318,6 +318,10 @@ class Sync_Runner {
 				} else {
 					$published_status = filter_var( $stored_published, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE );
 				}
+			// Use null for unknown state to avoid forcing publication changes.
+			$published_status = false; // Default for new articles (create as draft).
+			if ( $existing_article_id ) {
+				$published_status = null;
 
 				$current_article = $devto_api->get_article( $existing_article_id );
 				if ( ! is_wp_error( $current_article ) ) {
@@ -348,6 +352,12 @@ class Sync_Runner {
 							'api_error'         => $current_article->get_error_message(),
 							'status_code'       => $status_code,
 							'fallback_published' => $published_status,
+					Logger::warning(
+						'Could not fetch current Dev.to status; preserving publication state by omission',
+						array(
+							'post_id'     => $post_id,
+							'article_id'  => $existing_article_id,
+							'api_error'   => $current_article->get_error_message(),
 						)
 					);
 				}
