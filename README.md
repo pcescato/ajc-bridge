@@ -3,6 +3,10 @@
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.1%2B-purple.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![Version](https://img.shields.io/badge/Version-1.3.0-orange.svg)](https://github.com/pcescato/ajc-bridge/releases)
+[![Publishing Strategies](https://img.shields.io/badge/architecture-multi--channel%20publishing-46A0C7)](https://img.shields.io/badge/architecture-multi--channel%20publishing-46A0C7)
+[![GitHub Developer Program](https://img.shields.io/badge/GitHub-Developer%20Program-blue)](https://img.shields.io/badge/GitHub-Developer%20Program-blue)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/pcescato/ajc-bridge)
 
 **Write once, publish everywhere.** WordPress as your headless CMS for static sites (Hugo, Astro, Jekyll) via GitHub.
 
