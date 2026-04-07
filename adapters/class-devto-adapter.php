@@ -165,8 +165,8 @@ class DevTo_Adapter implements Adapter_Interface {
 		if ( ! empty( $post->post_excerpt ) ) {
 			$description = $post->post_excerpt;
 		} else {
-			// Fallback to truncated content
-			$content     = wp_strip_all_tags( $post->post_content );
+			// Fallback to truncated content — decode HTML entities so description is plain text
+			$content     = html_entity_decode( wp_strip_all_tags( $post->post_content ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 			$description = wp_trim_words( $content, 25, '' );
 		}
 
@@ -277,8 +277,14 @@ class DevTo_Adapter implements Adapter_Interface {
 			return null;
 		}
 
-		// Use first (primary) category
-		return $categories[0]->name;
+		$name = $categories[0]->name;
+
+		// 'Uncategorized' is not a meaningful series
+		if ( 'Uncategorized' === $name ) {
+			return null;
+		}
+
+		return $name;
 	}
 
 	/**
@@ -311,8 +317,41 @@ class DevTo_Adapter implements Adapter_Interface {
 	 * @return string Markdown content.
 	 */
 	private function html_to_markdown( string $html ): string {
-		// Remove WordPress blocks comments
-		$html = preg_replace( '/<!-- wp:(.*?) -->(.*?)<!-- \/wp:\1 -->/s', '$2', $html );
+		// Pre-extract code blocks into placeholders BEFORE any other processing.
+		// wp_strip_all_tags() calls strip_tags() which eats PHP open tags (<?php)
+		// inside already-converted fenced code blocks.
+		$code_blocks = array();
+		$html = preg_replace_callback(
+			'/<pre([^>]*)>\s*<code([^>]*)>(.*?)<\/code>\s*<\/pre>/is',
+			function ( $matches ) use ( &$code_blocks ) {
+				$pre_attrs  = $matches[1];
+				$code_attrs = $matches[2];
+				$raw        = $matches[3];
+
+				$lang = null;
+				foreach ( array( $pre_attrs, $code_attrs ) as $attrs ) {
+					if ( preg_match( '/class=["\']([^"\']*)["\']/', $attrs, $cm ) ) {
+						if ( preg_match( '/\blanguage-([\w-]+)\b/', $cm[1], $lm ) ) {
+							$lang = $lm[1];
+							break;
+						}
+					}
+				}
+
+				$code        = html_entity_decode( $raw, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+				$fence       = $lang ? "\n```{$lang}\n{$code}\n```\n" : "\n```\n{$code}\n```\n";
+				$placeholder = 'AJCCODE' . count( $code_blocks ) . 'AJCCODE';
+
+				$code_blocks[ $placeholder ] = $fence;
+
+				return $placeholder;
+			},
+			$html
+		);
+
+		// Remove WordPress block comments.
+		// Only capture block name (not attributes) so closing tag backreference matches.
+		$html = preg_replace( '/<!-- wp:([^\s{]+)[^>]*?-->(.*?)<!-- \/wp:\1 -->/s', '$2', $html );
 
 		// Convert images: <img src="..." alt="..."> → ![alt](src)
 		$html = preg_replace(
@@ -353,9 +392,6 @@ class DevTo_Adapter implements Adapter_Interface {
 		$html = preg_replace( '/<\/?ul>/i', "\n", $html );
 		$html = preg_replace( '/<\/?ol>/i', "\n", $html );
 
-		// Convert code blocks: <pre><code>...</code></pre> → ```...```
-		$html = preg_replace( '/<pre[^>]*><code[^>]*>(.*?)<\/code><\/pre>/is', "\n```\n$1\n```\n", $html );
-
 		// Convert inline code: <code>text</code> → `text`
 		$html = preg_replace( '/<code>(.*?)<\/code>/i', '`$1`', $html );
 
@@ -392,6 +428,11 @@ class DevTo_Adapter implements Adapter_Interface {
 
 		// Remove remaining HTML tags
 		$html = wp_strip_all_tags( $html );
+
+		// Restore code block placeholders (extracted before wp_strip_all_tags to protect PHP open tags)
+		if ( ! empty( $code_blocks ) ) {
+			$html = str_replace( array_keys( $code_blocks ), array_values( $code_blocks ), $html );
+		}
 
 		// Clean up multiple newlines
 		$html = preg_replace( "/\n{3,}/", "\n\n", $html );

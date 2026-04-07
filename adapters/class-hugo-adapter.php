@@ -215,6 +215,38 @@ class Hugo_Adapter implements Adapter_Interface {
 		// Handle common WordPress blocks (Gutenberg)
 		$content = $this->convert_gutenberg_blocks( $content );
 
+		// Pre-process code blocks BEFORE any HTML converter runs.
+		// Gutenberg stores language-* on <pre>; League\HTMLToMarkdown ignores it.
+		// We replace each block with a placeholder and restore after conversion.
+		$code_blocks = array();
+		$content = preg_replace_callback(
+			'/<pre([^>]*)>\s*<code([^>]*)>(.*?)<\/code>\s*<\/pre>/is',
+			function ( $matches ) use ( &$code_blocks ) {
+				$pre_attrs  = $matches[1];
+				$code_attrs = $matches[2];
+				$raw        = $matches[3];
+
+				$lang = null;
+				foreach ( array( $pre_attrs, $code_attrs ) as $attrs ) {
+					if ( preg_match( '/class=["\']([^"\']*)["\']/', $attrs, $cm ) ) {
+						if ( preg_match( '/\blanguage-([\w-]+)\b/', $cm[1], $lm ) ) {
+							$lang = $lm[1];
+							break;
+						}
+					}
+				}
+
+				$code        = html_entity_decode( $raw, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+				$fence       = $lang ? "\n```{$lang}\n{$code}\n```\n" : "\n```\n{$code}\n```\n";
+				$placeholder = 'AJCCODE' . count( $code_blocks ) . 'AJCCODE';
+
+				$code_blocks[ $placeholder ] = $fence;
+
+				return $placeholder;
+			},
+			$content
+		);
+
 		// Use League\HTMLToMarkdown if available
 		if ( class_exists( '\League\HTMLToMarkdown\HtmlConverter' ) ) {
 			try {
@@ -236,6 +268,11 @@ class Hugo_Adapter implements Adapter_Interface {
 		} else {
 			// Fall back to basic conversion if library not available
 			$markdown = $this->basic_html_to_markdown( $content );
+		}
+
+		// Restore pre-processed code blocks with correct language fences
+		foreach ( $code_blocks as $placeholder => $fence ) {
+			$markdown = str_replace( $placeholder, $fence, $markdown );
 		}
 
 		// Post-process to clean up WordPress artifacts
@@ -425,8 +462,37 @@ class Hugo_Adapter implements Adapter_Interface {
 		// Convert blockquotes
 		$html = preg_replace( '/<blockquote[^>]*>(.*?)<\/blockquote>/is', "\n> $1\n", $html );
 
-		// Convert code blocks
-		$html = preg_replace( '/<pre[^>]*><code[^>]*>(.*?)<\/code><\/pre>/is', "\n```\n$1\n```\n", $html );
+		// Convert code blocks with optional language from className
+		// Gutenberg puts language-* on <pre>, fallback checks <code> too.
+		$html = preg_replace_callback(
+			'/<pre([^>]*)>\s*<code([^>]*)>(.*?)<\/code>\s*<\/pre>/is',
+			function ( $matches ) {
+				$pre_attrs  = $matches[1];
+				$code_attrs = $matches[2];
+				$content    = $matches[3];
+
+				// Check <pre> first (Gutenberg stores class here), then <code>
+				$lang = null;
+				foreach ( array( $pre_attrs, $code_attrs ) as $attrs ) {
+					if ( preg_match( '/class=["\']([^"\']*)["\']/', $attrs, $class_match ) ) {
+						if ( preg_match( '/\blanguage-([\w-]+)\b/', $class_match[1], $lang_match ) ) {
+							$lang = $lang_match[1];
+							break;
+						}
+					}
+				}
+
+				// Decode HTML entities in code content before output
+				$code = html_entity_decode( $content, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+
+				if ( $lang ) {
+					return "\n```" . $lang . "\n" . $code . "\n```\n";
+				}
+
+				return "\n```\n" . $code . "\n```\n";
+			},
+			$html
+		);
 		$html = preg_replace( '/<code[^>]*>(.*?)<\/code>/is', '`$1`', $html );
 
 		// Convert line breaks and paragraphs

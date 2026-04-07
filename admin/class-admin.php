@@ -27,10 +27,28 @@ class Admin {
 	 */
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'add_menu_pages' ) );
+		add_action( 'enqueue_block_editor_assets', array( __CLASS__, 'enqueue_block_editor_assets' ) );
 
 		// Initialize settings and columns (they handle their own asset enqueuing)
 		Settings::init();
 		Columns::init();
+	}
+
+	/**
+	 * Enqueue block editor assets
+	 *
+	 * Registers scripts that enhance the Gutenberg block editor.
+	 *
+	 * @return void
+	 */
+	public static function enqueue_block_editor_assets(): void {
+		wp_enqueue_script(
+			'ajc-bridge-code-language-control',
+			AJC_BRIDGE_URL . 'admin/js/code-language-control.js',
+			array( 'wp-hooks', 'wp-block-editor', 'wp-components', 'wp-compose', 'wp-element' ),
+			AJC_BRIDGE_VERSION,
+			true
+		);
 	}
 
 	/**
