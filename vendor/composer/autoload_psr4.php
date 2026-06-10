@@ -9,7 +9,7 @@ return array(
     'League\\HTMLToMarkdown\\' => array($vendorDir . '/league/html-to-markdown/src'),
     'Intervention\\Image\\' => array($vendorDir . '/intervention/image/src'),
     'Intervention\\Gif\\' => array($vendorDir . '/intervention/gif/src'),
+    'AjcBridge\\Core\\' => array($baseDir . '/core'),
     'AjcBridge\\Admin\\' => array($baseDir . '/admin'),
     'AjcBridge\\Adapters\\' => array($baseDir . '/adapters'),
-    'AjcBridge\\' => array($baseDir . '/core'),
 );

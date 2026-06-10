@@ -22,9 +22,9 @@ class ComposerStaticInit89262309cc463c67ec005c86e6db1b65
         ),
         'A' => 
         array (
+            'AjcBridge\\Core\\' => 15,
             'AjcBridge\\Admin\\' => 16,
             'AjcBridge\\Adapters\\' => 19,
-            'AjcBridge\\' => 10,
         ),
     );
 
@@ -41,6 +41,10 @@ class ComposerStaticInit89262309cc463c67ec005c86e6db1b65
         array (
             0 => __DIR__ . '/..' . '/intervention/gif/src',
         ),
+        'AjcBridge\\Core\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/core',
+        ),
         'AjcBridge\\Admin\\' => 
         array (
             0 => __DIR__ . '/../..' . '/admin',
@@ -48,10 +52,6 @@ class ComposerStaticInit89262309cc463c67ec005c86e6db1b65
         'AjcBridge\\Adapters\\' => 
         array (
             0 => __DIR__ . '/../..' . '/adapters',
-        ),
-        'AjcBridge\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/core',
         ),
     );
 

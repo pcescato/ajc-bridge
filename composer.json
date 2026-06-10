@@ -18,7 +18,7 @@
 	},
 	"autoload": {
 		"psr-4": {
-			"AjcBridge\\": "core/",
+			"AjcBridge\\Core\\": "core/",
 			"AjcBridge\\Adapters\\": "adapters/",
 			"AjcBridge\\Admin\\": "admin/"
 		}
